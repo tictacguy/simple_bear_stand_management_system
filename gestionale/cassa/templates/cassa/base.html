@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Gestionale{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        sidebar: '#1e293b',
+                        'sidebar-hover': '#334155',
+                        'sidebar-active': '#0f172a',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-slate-100 h-screen flex overflow-hidden text-sm text-slate-800">
+    <aside class="w-52 bg-sidebar text-slate-300 flex flex-col shrink-0">
+        <div class="px-5 py-4 text-base font-semibold text-white tracking-wide border-b border-slate-700">Sagra Lancenigo</div>
+        <nav class="flex-1 py-3 space-y-0.5 px-2">
+            <a href="{% url 'cassa:cassa' %}" class="block px-3 py-2 rounded {% if request.resolver_match.url_name == 'cassa' %}bg-sidebar-active text-white{% else %}hover:bg-sidebar-hover{% endif %}">Cassa</a>
+            <a href="{% url 'cassa:inventario' %}" class="block px-3 py-2 rounded {% if request.resolver_match.url_name == 'inventario' %}bg-sidebar-active text-white{% else %}hover:bg-sidebar-hover{% endif %}">Inventario</a>
+            <a href="{% url 'cassa:andamento' %}" class="block px-3 py-2 rounded {% if request.resolver_match.url_name == 'andamento' %}bg-sidebar-active text-white{% else %}hover:bg-sidebar-hover{% endif %}">Andamento</a>
+            <a href="{% url 'cassa:resoconti' %}" class="block px-3 py-2 rounded {% if request.resolver_match.url_name == 'resoconti' %}bg-sidebar-active text-white{% else %}hover:bg-sidebar-hover{% endif %}">Resoconti</a>
+            <a href="{% url 'cassa:operatori' %}" class="block px-3 py-2 rounded {% if request.resolver_match.url_name == 'operatori' %}bg-sidebar-active text-white{% else %}hover:bg-sidebar-hover{% endif %}">Operatori</a>
+        </nav>
+        <div class="px-4 py-3 border-t border-slate-700 text-xs text-slate-400 flex justify-between items-center">
+            <span>{{ request.user.username }}</span>
+            <a href="{% url 'logout' %}" class="text-red-400 hover:text-red-300">Esci</a>
+        </div>
+    </aside>
+
+    <main class="flex-1 overflow-auto">
+        {% csrf_token %}
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Modale ordine completato -->
+    <div id="order-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl w-[340px] max-h-[80vh] flex flex-col">
+            <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+                <span id="order-modal-title" class="font-semibold text-base text-green-700"></span>
+                <button onclick="closeOrderModal()" class="text-slate-400 hover:text-slate-600 text-lg">&times;</button>
+            </div>
+            <!-- Preview comanda -->
+            <div id="order-modal-preview" class="flex-1 overflow-auto p-4 bg-slate-50 font-mono text-xs leading-relaxed"></div>
+            <div class="px-5 py-3 border-t border-slate-200 flex gap-2">
+                <button onclick="printCurrentComanda()" class="flex-1 py-2 bg-slate-800 text-white rounded hover:bg-slate-900 text-sm">Stampa comanda</button>
+                <button onclick="closeOrderModal()" class="flex-1 py-2 border border-slate-300 rounded hover:bg-slate-50 text-sm">Chiudi</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    let currentOrderData = null;
+
+    function getCookie(name) {
+        const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+        return v ? v.pop() : '';
+    }
+
+    function showOrderModal(msg, orderData) {
+        currentOrderData = orderData;
+        document.getElementById('order-modal-title').textContent = msg;
+        const preview = document.getElementById('order-modal-preview');
+        preview.innerHTML = `
+            <div class="text-center font-bold text-sm mb-1">COMANDA #${orderData.order_id}</div>
+            <div class="text-center text-[10px] text-slate-500 mb-2">${new Date().toLocaleString('it-IT')}</div>
+            <div class="border-t border-dashed border-slate-400 my-2"></div>
+            ${orderData.items.map(i => `<div class="flex justify-between py-0.5"><span>${i.quantity}x ${i.name}</span></div>`).join('')}
+            <div class="border-t border-dashed border-slate-400 my-2"></div>
+        `;
+        document.getElementById('order-modal').classList.remove('hidden');
+    }
+
+    function closeOrderModal() {
+        document.getElementById('order-modal').classList.add('hidden');
+        currentOrderData = null;
+    }
+
+    function printCurrentComanda() {
+        if (!currentOrderData) return;
+        const data = currentOrderData;
+        const w = window.open('', '_blank', 'width=300,height=500');
+        const html = `<!DOCTYPE html><html><head><title>Comanda</title>
+        <style>
+            @page { size: 72mm auto; margin: 0; }
+            body{font-family:monospace;width:72mm;margin:0 auto;padding:6mm 4mm;font-size:12px}
+            h2{text-align:center;margin:0 0 4px;font-size:14px}
+            hr{border:none;border-top:1px dashed #000;margin:6px 0}
+            .item{padding:2px 0}
+            .time{text-align:center;font-size:10px;color:#555}
+        </style></head><body>
+        <h2>COMANDA #${data.order_id}</h2>
+        <div class="time">${new Date().toLocaleString('it-IT')}</div>
+        <hr>
+        ${data.items.map(i => `<div class="item">${i.quantity}x ${i.name}</div>`).join('')}
+        <hr>
+        <script>window.print();window.onafterprint=()=>window.close();<\/script>
+        </body></html>`;
+        w.document.write(html);
+        w.document.close();
+    }
+
+    function showToast(msg, type = 'error') {
+        // Toast semplice per errori (in basso)
+        const el = document.createElement('div');
+        el.className = `fixed bottom-5 right-5 z-50 px-5 py-3 rounded shadow-lg text-sm font-medium bg-red-600 text-white`;
+        el.textContent = msg;
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 3000);
+    }
+    </script>
+    {% block scripts %}{% endblock %}
+    <script>lucide.createIcons();</script>
+</body>
+</html>

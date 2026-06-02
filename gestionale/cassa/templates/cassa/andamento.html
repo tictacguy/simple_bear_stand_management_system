@@ -1,0 +1,172 @@
+{% extends "cassa/base.html" %}
+{% block title %}Andamento{% endblock %}
+
+{% block content %}
+<div class="p-6 space-y-5">
+    <div class="flex justify-between items-center">
+        <h1 class="text-lg font-semibold text-slate-800">Andamento</h1>
+        <div class="flex gap-1">
+            <button onclick="loadData(1)" class="px-3 py-1.5 rounded border border-slate-300 hover:bg-slate-50 text-xs">Oggi</button>
+            <button onclick="loadData(7)" class="px-3 py-1.5 rounded border border-slate-300 hover:bg-slate-50 text-xs">7gg</button>
+            <button onclick="loadData(30)" class="px-3 py-1.5 rounded border border-slate-300 hover:bg-slate-50 text-xs">30gg</button>
+            <button onclick="loadData(90)" class="px-3 py-1.5 rounded border border-slate-300 hover:bg-slate-50 text-xs">90gg</button>
+        </div>
+    </div>
+
+    <!-- KPI -->
+    <div class="grid grid-cols-3 gap-4">
+        <div class="bg-white border border-slate-200 rounded p-5">
+            <div class="text-xs text-slate-500 uppercase">Totale incassato</div>
+            <div id="sum-total" class="text-2xl font-bold mt-1">€ 0.00</div>
+        </div>
+        <div class="bg-white border border-slate-200 rounded p-5">
+            <div class="text-xs text-slate-500 uppercase">Numero ordini</div>
+            <div id="sum-count" class="text-2xl font-bold mt-1">0</div>
+        </div>
+        <div class="bg-white border border-slate-200 rounded p-5">
+            <div class="text-xs text-slate-500 uppercase">Media per ordine</div>
+            <div id="sum-avg" class="text-2xl font-bold mt-1">€ 0.00</div>
+        </div>
+    </div>
+
+    <!-- Grafico incasso giornaliero -->
+    <div class="bg-white border border-slate-200 rounded">
+        <button onclick="toggleCard('card-daily')" class="w-full px-5 py-3 flex items-center justify-between text-left hover:bg-slate-50">
+            <span class="text-xs text-slate-500 uppercase font-semibold">Incasso giornaliero</span>
+            <span id="card-daily-icon" class="text-slate-400 text-xs">▼</span>
+        </button>
+        <div id="card-daily" class="hidden px-5 pb-5">
+            <canvas id="chart-daily" height="70"></canvas>
+        </div>
+    </div>
+
+    <!-- Grafici: categoria + pagamento -->
+    <div class="bg-white border border-slate-200 rounded">
+        <button onclick="toggleCard('card-category')" class="w-full px-5 py-3 flex items-center justify-between text-left hover:bg-slate-50">
+            <span class="text-xs text-slate-500 uppercase font-semibold">Incasso per categoria</span>
+            <span id="card-category-icon" class="text-slate-400 text-xs">▼</span>
+        </button>
+        <div id="card-category" class="hidden px-5 pb-5">
+            <canvas id="chart-category" height="180"></canvas>
+        </div>
+    </div>
+
+    <div class="bg-white border border-slate-200 rounded">
+        <button onclick="toggleCard('card-payment')" class="w-full px-5 py-3 flex items-center justify-between text-left hover:bg-slate-50">
+            <span class="text-xs text-slate-500 uppercase font-semibold">Metodo di pagamento</span>
+            <span id="card-payment-icon" class="text-slate-400 text-xs">▼</span>
+        </button>
+        <div id="card-payment" class="hidden px-5 pb-5">
+            <canvas id="chart-payment" height="180"></canvas>
+        </div>
+    </div>
+
+    <!-- Top prodotti -->
+    <div class="bg-white border border-slate-200 rounded">
+        <button onclick="toggleCard('card-products')" class="w-full px-5 py-3 flex items-center justify-between text-left hover:bg-slate-50">
+            <span class="text-xs text-slate-500 uppercase font-semibold">Top 10 prodotti venduti</span>
+            <span id="card-products-icon" class="text-slate-400 text-xs">▼</span>
+        </button>
+        <div id="card-products" class="hidden px-5 pb-5">
+            <canvas id="chart-products" height="60"></canvas>
+        </div>
+    </div>
+
+    <!-- Tabella giornaliera -->
+    <div class="bg-white border border-slate-200 rounded overflow-hidden">
+        <table class="w-full">
+            <thead class="bg-slate-50 text-xs text-slate-500 uppercase">
+                <tr>
+                    <th class="px-4 py-3 text-left">Data</th>
+                    <th class="px-4 py-3 text-right">Ordini</th>
+                    <th class="px-4 py-3 text-right">Incasso</th>
+                </tr>
+            </thead>
+            <tbody id="daily-table"></tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let charts = {};
+
+function toggleCard(id) {
+    const el = document.getElementById(id);
+    const icon = document.getElementById(id + '-icon');
+    const isHidden = el.classList.toggle('hidden');
+    icon.textContent = isHidden ? '▼' : '▲';
+    if (!isHidden) {
+        const chartId = id.replace('card-', '');
+        if (charts[chartId]) setTimeout(() => charts[chartId].resize(), 10);
+    }
+}
+
+function destroyCharts() {
+    Object.values(charts).forEach(c => c && c.destroy());
+    charts = {};
+}
+
+const COLORS = ['#475569','#0ea5e9','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#84cc16','#f97316'];
+
+async function loadData(days) {
+    const res = await fetch(`{% url "cassa:andamento_data" %}?days=${days}`);
+    const data = await res.json();
+
+    document.getElementById('sum-total').textContent = `€ ${parseFloat(data.summary.total).toFixed(2)}`;
+    document.getElementById('sum-count').textContent = data.summary.count;
+    document.getElementById('sum-avg').textContent = `€ ${parseFloat(data.summary.avg).toFixed(2)}`;
+
+    destroyCharts();
+
+    charts.daily = new Chart(document.getElementById('chart-daily'), {
+        type: 'bar',
+        data: {
+            labels: data.daily.map(d => d.date),
+            datasets: [{label: 'Incasso (€)', data: data.daily.map(d => parseFloat(d.total)), backgroundColor: '#475569'}]
+        },
+        options: {responsive: true, plugins: {legend: {display: false}}, scales: {y: {beginAtZero: true}}}
+    });
+
+    charts.category = new Chart(document.getElementById('chart-category'), {
+        type: 'doughnut',
+        data: {
+            labels: data.by_category.map(c => c.name),
+            datasets: [{data: data.by_category.map(c => parseFloat(c.revenue)), backgroundColor: COLORS}]
+        },
+        options: {responsive: true, plugins: {legend: {position: 'right', labels: {boxWidth: 12, font: {size: 11}}}}}
+    });
+
+    const payLabels = data.by_payment.map(p => p.method === 'cash' ? 'Contanti' : 'Carta');
+    charts.payment = new Chart(document.getElementById('chart-payment'), {
+        type: 'pie',
+        data: {
+            labels: payLabels,
+            datasets: [{data: data.by_payment.map(p => parseFloat(p.total)), backgroundColor: ['#10b981', '#0ea5e9']}]
+        },
+        options: {responsive: true, plugins: {legend: {position: 'right', labels: {boxWidth: 12, font: {size: 11}}}}}
+    });
+
+    charts.products = new Chart(document.getElementById('chart-products'), {
+        type: 'bar',
+        data: {
+            labels: data.top_products.map(p => p.name),
+            datasets: [{label: 'Quantità', data: data.top_products.map(p => p.qty), backgroundColor: '#475569'}]
+        },
+        options: {indexAxis: 'y', responsive: true, plugins: {legend: {display: false}}, scales: {x: {beginAtZero: true}}}
+    });
+
+    const tbody = document.getElementById('daily-table');
+    tbody.innerHTML = data.daily.slice().reverse().map(d => `
+        <tr class="border-t border-slate-100">
+            <td class="px-4 py-3">${d.date}</td>
+            <td class="px-4 py-3 text-right">${d.count}</td>
+            <td class="px-4 py-3 text-right font-medium">€ ${parseFloat(d.total).toFixed(2)}</td>
+        </tr>
+    `).join('') || '<tr><td colspan="3" class="px-4 py-6 text-center text-slate-400">Nessun dato</td></tr>';
+}
+
+loadData(7);
+</script>
+{% endblock %}

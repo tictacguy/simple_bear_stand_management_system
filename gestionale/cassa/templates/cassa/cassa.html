@@ -1,0 +1,255 @@
+{% extends "cassa/base.html" %}
+{% load i18n %}
+{% block title %}Cassa{% endblock %}
+
+{% block content %}
+<div class="flex h-full">
+    <!-- Prodotti -->
+    <div class="flex-1 p-4 flex flex-col border-r border-slate-200">
+        <!-- Searchbar con dropdown -->
+        <div class="relative mb-3">
+            <input id="search" type="text" placeholder="Cerca prodotto..." autocomplete="off"
+                   class="w-full px-3 py-2 border border-slate-300 rounded bg-white focus:outline-none focus:border-slate-500">
+            <div id="search-dropdown" class="hidden absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg z-40 max-h-64 overflow-auto"></div>
+        </div>
+
+        <!-- Shortcut per categoria -->
+        <div id="shortcuts" class="overflow-auto flex-1 space-y-4">
+            {% regroup products by category as cat_list %}
+            {% for cat in cat_list %}
+            <div>
+                <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">{{ cat.grouper.name|default:"Senza categoria" }}</div>
+                <div class="grid grid-cols-5 gap-2">
+                    {% for p in cat.list %}
+                    <button type="button" data-id="{{ p.id }}" data-name="{{ p.name }}" data-price="{{ p.price }}"
+                            class="shortcut-btn p-3 bg-white border border-slate-200 rounded hover:border-slate-400 hover:bg-slate-50 text-center transition-colors flex flex-col items-center gap-1.5">
+                        {% if p.icon %}<i data-lucide="{{ p.icon }}" class="w-5 h-5 text-slate-500"></i>{% endif %}
+                        <div class="font-medium text-xs truncate w-full">{{ p.name }}</div>
+                        <div class="text-slate-500 text-xs">€{{ p.price }}</div>
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Ordine -->
+    <div class="w-[360px] bg-white flex flex-col">
+        <div class="px-4 py-3 border-b border-slate-200 font-semibold text-slate-700">Ordine corrente</div>
+
+        <div id="order-items" class="flex-1 overflow-auto">
+            <table class="w-full">
+                <thead class="bg-slate-50 text-xs text-slate-500 uppercase sticky top-0">
+                    <tr>
+                        <th class="px-4 py-2 text-left">Prodotto</th>
+                        <th class="px-2 py-2 text-center">Qtà</th>
+                        <th class="px-4 py-2 text-right">Subtot.</th>
+                        <th class="px-2 py-2"></th>
+                    </tr>
+                </thead>
+                <tbody id="order-tbody"></tbody>
+            </table>
+        </div>
+
+        <div class="border-t border-slate-200 p-4 space-y-3">
+            <div class="flex items-center justify-between">
+                <label class="text-slate-500">Sconto %</label>
+                <input id="discount" type="number" min="0" max="100" value="0"
+                       class="w-20 px-2 py-1 border border-slate-300 rounded text-center" onchange="updateTotal()">
+            </div>
+            <div class="flex items-center justify-between text-xl font-bold">
+                <span>Totale</span>
+                <span id="total">€ 0.00</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="checkout('cash')" class="py-2.5 bg-slate-800 text-white rounded font-medium hover:bg-slate-900">Contanti</button>
+                <button onclick="checkout('card')" class="py-2.5 bg-slate-600 text-white rounded font-medium hover:bg-slate-700">Carta</button>
+            </div>
+            <button onclick="clearOrder()" class="w-full py-2 text-slate-500 border border-slate-300 rounded hover:bg-slate-50">Svuota ordine</button>
+            <button onclick="openWithdrawalModal()" class="w-full py-2 text-orange-600 border border-orange-300 rounded hover:bg-orange-50">Prelievo cassa</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modale prelievo -->
+<div id="withdrawal-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl w-96 p-6 space-y-4">
+        <h2 class="text-base font-semibold">Prelievo dalla cassa</h2>
+        <select id="w-operator" class="w-full px-3 py-2 border border-slate-300 rounded">
+            <option value="">Seleziona operatore</option>
+            {% for op in operators %}
+            <option value="{{ op.id }}">{{ op.name }}</option>
+            {% endfor %}
+        </select>
+        <input id="w-amount" type="number" step="0.01" min="0" placeholder="Importo (€)" class="w-full px-3 py-2 border border-slate-300 rounded">
+        <input id="w-note" type="text" placeholder="Note (opz.)" class="w-full px-3 py-2 border border-slate-300 rounded">
+        <div class="flex gap-2">
+            <button onclick="submitWithdrawal()" class="flex-1 py-2 bg-orange-600 text-white rounded hover:bg-orange-700">Registra prelievo</button>
+            <button onclick="closeWithdrawalModal()" class="flex-1 py-2 border border-slate-300 rounded hover:bg-slate-50">Annulla</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let orderItems = [];
+let searchTimeout = null;
+
+// Shortcut click
+document.querySelectorAll('.shortcut-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        addItem(
+            parseInt(btn.dataset.id),
+            btn.dataset.name,
+            btn.dataset.price
+        );
+    });
+});
+
+function addItem(id, name, price) {
+    const p = parseFloat(String(price).replace(',', '.'));
+    const existing = orderItems.find(i => i.id === id);
+    if (existing) existing.quantity++;
+    else orderItems.push({id, name, price: p, quantity: 1});
+    renderOrder();
+}
+
+function removeItem(id) {
+    orderItems = orderItems.filter(i => i.id !== id);
+    renderOrder();
+}
+
+function changeQty(id, delta) {
+    const item = orderItems.find(i => i.id === id);
+    if (!item) return;
+    item.quantity += delta;
+    if (item.quantity <= 0) removeItem(id);
+    else renderOrder();
+}
+
+function renderOrder() {
+    const tbody = document.getElementById('order-tbody');
+    tbody.innerHTML = orderItems.map(i => `
+        <tr class="border-t border-slate-100">
+            <td class="px-4 py-2">${i.name}</td>
+            <td class="px-2 py-2 text-center">
+                <div class="flex items-center justify-center gap-1">
+                    <button onclick="changeQty(${i.id}, -1)" class="w-6 h-6 border border-slate-300 rounded text-xs hover:bg-slate-100">−</button>
+                    <span class="w-5 text-center">${i.quantity}</span>
+                    <button onclick="changeQty(${i.id}, 1)" class="w-6 h-6 border border-slate-300 rounded text-xs hover:bg-slate-100">+</button>
+                </div>
+            </td>
+            <td class="px-4 py-2 text-right">€${(i.price * i.quantity).toFixed(2)}</td>
+            <td class="px-2 py-2"><button onclick="removeItem(${i.id})" class="text-red-500 hover:text-red-700 text-xs">✕</button></td>
+        </tr>
+    `).join('');
+    updateTotal();
+}
+
+function updateTotal() {
+    const subtotal = orderItems.reduce((s, i) => s + i.price * i.quantity, 0);
+    const discount = parseFloat(document.getElementById('discount').value) || 0;
+    const total = subtotal * (1 - discount / 100);
+    document.getElementById('total').textContent = `€ ${total.toFixed(2)}`;
+}
+
+function clearOrder() {
+    orderItems = [];
+    document.getElementById('discount').value = 0;
+    renderOrder();
+}
+
+async function checkout(method) {
+    if (!orderItems.length) return;
+    const discount = parseFloat(document.getElementById('discount').value) || 0;
+    const itemsSnapshot = orderItems.map(i => ({...i}));
+    const res = await fetch('{% url "cassa:create_order" %}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+        body: JSON.stringify({items: orderItems, payment_method: method, discount_percent: discount})
+    });
+    const data = await res.json();
+    if (res.ok) {
+        clearOrder();
+        showOrderModal(`Ordine #${data.order_id} — €${data.total}`, {order_id: data.order_id, items: itemsSnapshot});
+    } else {
+        showToast(data.error || 'Errore sconosciuto');
+    }
+}
+
+// Searchbar con dropdown in tempo reale
+const searchInput = document.getElementById('search');
+const dropdown = document.getElementById('search-dropdown');
+
+searchInput.addEventListener('input', function() {
+    const q = this.value.trim();
+    if (!q) {
+        dropdown.classList.add('hidden');
+        return;
+    }
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        fetch(`{% url "cassa:search" %}?q=${encodeURIComponent(q)}`)
+            .then(r => r.json())
+            .then(products => {
+                if (!products.length) {
+                    dropdown.innerHTML = '<div class="px-4 py-3 text-slate-400 text-sm">Nessun risultato</div>';
+                } else {
+                    dropdown.innerHTML = products.map(p => `
+                        <button type="button" class="w-full px-4 py-2 text-left hover:bg-slate-50 flex items-center gap-3 border-b border-slate-100 last:border-0"
+                                data-id="${p.id}" data-name="${p.name}" data-price="${p.price}">
+                            ${p.icon ? `<i data-lucide="${p.icon}" class="w-4 h-4 text-slate-400 shrink-0"></i>` : '<span class="w-4"></span>'}
+                            <span class="flex-1 truncate text-sm">${p.name}</span>
+                            <span class="text-xs text-slate-500">€${p.price}</span>
+                        </button>
+                    `).join('');
+                    dropdown.querySelectorAll('button').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            addItem(parseInt(btn.dataset.id), btn.dataset.name, btn.dataset.price);
+                            searchInput.value = '';
+                            dropdown.classList.add('hidden');
+                        });
+                    });
+                    lucide.createIcons();
+                }
+                dropdown.classList.remove('hidden');
+            });
+    }, 150);
+});
+
+searchInput.addEventListener('blur', () => {
+    setTimeout(() => dropdown.classList.add('hidden'), 200);
+});
+searchInput.addEventListener('focus', () => {
+    if (searchInput.value.trim()) dropdown.classList.remove('hidden');
+});
+
+// Prelievo cassa
+function openWithdrawalModal() {
+    document.getElementById('w-operator').value = '';
+    document.getElementById('w-amount').value = '';
+    document.getElementById('w-note').value = '';
+    document.getElementById('withdrawal-modal').classList.remove('hidden');
+}
+function closeWithdrawalModal() {
+    document.getElementById('withdrawal-modal').classList.add('hidden');
+}
+async function submitWithdrawal() {
+    const operatorId = document.getElementById('w-operator').value;
+    const amount = document.getElementById('w-amount').value;
+    if (!operatorId || !amount) return;
+    const res = await fetch('{% url "cassa:create_withdrawal" %}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+        body: JSON.stringify({operator_id: operatorId, amount: amount, note: document.getElementById('w-note').value})
+    });
+    const data = await res.json();
+    if (res.ok) {
+        closeWithdrawalModal();
+        showOrderModal(`Prelievo registrato — €${data.amount}`, {order_id: `P-${data.id}`, items: [{quantity: 1, name: `Prelievo: ${data.operator} — €${data.amount}`}]});
+    }
+}
+</script>
+{% endblock %}

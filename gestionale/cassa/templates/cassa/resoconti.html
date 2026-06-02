@@ -1,0 +1,38 @@
+{% extends "cassa/base.html" %}
+{% block title %}Resoconti{% endblock %}
+
+{% block content %}
+<div class="p-6">
+    <div class="flex justify-between items-center mb-4">
+        <h1 class="text-lg font-semibold text-slate-800">Resoconti</h1>
+        <a href="{% url 'cassa:resoconti_export_all' %}" class="px-4 py-2 bg-slate-800 text-white rounded hover:bg-slate-900 text-sm">Esporta tutto (.xlsx)</a>
+    </div>
+
+    <div class="bg-white border border-slate-200 rounded overflow-hidden">
+        <table class="w-full">
+            <thead class="bg-slate-50 text-xs text-slate-500 uppercase">
+                <tr>
+                    <th class="px-4 py-3 text-left">Data</th>
+                    <th class="px-4 py-3 text-right">Ordini</th>
+                    <th class="px-4 py-3 text-right">Incasso</th>
+                    <th class="px-4 py-3 text-right">Scarica</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in days %}
+                <tr class="border-t border-slate-100 hover:bg-slate-50">
+                    <td class="px-4 py-3 font-medium">{{ d.date }}</td>
+                    <td class="px-4 py-3 text-right">{{ d.count }}</td>
+                    <td class="px-4 py-3 text-right">€ {{ d.total }}</td>
+                    <td class="px-4 py-3 text-right">
+                        <a href="{% url 'cassa:resoconti_download' d.date %}" class="text-slate-600 hover:text-slate-900 underline">Download XLSX</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" class="px-4 py-8 text-center text-slate-400">Nessun resoconto disponibile</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

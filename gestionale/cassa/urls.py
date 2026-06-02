@@ -1,0 +1,22 @@
+from django.urls import path
+from . import views
+
+app_name = "cassa"
+
+urlpatterns = [
+    path("", views.cassa, name="cassa"),
+    path("search/", views.search_products, name="search"),
+    path("order/", views.create_order, name="create_order"),
+    path("withdrawal/", views.create_withdrawal, name="create_withdrawal"),
+    path("inventario/", views.inventario, name="inventario"),
+    path("inventario/save/", views.product_save, name="product_save"),
+    path("inventario/delete/<int:pk>/", views.product_delete, name="product_delete"),
+    path("operatori/", views.operatori, name="operatori"),
+    path("operatori/save/", views.operator_save, name="operator_save"),
+    path("operatori/delete/<int:pk>/", views.operator_delete, name="operator_delete"),
+    path("andamento/", views.andamento, name="andamento"),
+    path("andamento/data/", views.andamento_data, name="andamento_data"),
+    path("resoconti/", views.resoconti, name="resoconti"),
+    path("resoconti/download/<str:date>/", views.resoconti_download, name="resoconti_download"),
+    path("resoconti/export-all/", views.resoconti_export_all, name="resoconti_export_all"),
+]

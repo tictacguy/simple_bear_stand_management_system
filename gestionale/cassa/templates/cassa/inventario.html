@@ -1,0 +1,154 @@
+{% extends "cassa/base.html" %}
+{% block title %}Inventario{% endblock %}
+
+{% block content %}
+<div class="p-6">
+    <div class="flex justify-between items-center mb-4">
+        <h1 class="text-lg font-semibold text-slate-800">Inventario</h1>
+        <button onclick="openModal()" class="px-4 py-2 bg-slate-800 text-white rounded hover:bg-slate-900 text-sm">Nuovo prodotto</button>
+    </div>
+
+    <div class="bg-white rounded border border-slate-200 overflow-hidden">
+        <table class="w-full">
+            <thead class="bg-slate-50 text-xs text-slate-500 uppercase">
+                <tr>
+                    <th class="px-4 py-3 text-left">Icona</th>
+                    <th class="px-4 py-3 text-left">Nome</th>
+                    <th class="px-4 py-3 text-left">Categoria</th>
+                    <th class="px-4 py-3 text-right">Prezzo</th>
+                    <th class="px-4 py-3 text-right">Stock</th>
+                    <th class="px-4 py-3 text-center">Shortcut</th>
+                    <th class="px-4 py-3 text-right">Azioni</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in products %}
+                <tr class="border-t border-slate-100 hover:bg-slate-50">
+                    <td class="px-4 py-3">{% if p.icon %}<i data-lucide="{{ p.icon }}" class="w-4 h-4 text-slate-500"></i>{% else %}—{% endif %}</td>
+                    <td class="px-4 py-3 font-medium">{{ p.name }}</td>
+                    <td class="px-4 py-3 text-slate-500">{{ p.category.name|default:"—" }}</td>
+                    <td class="px-4 py-3 text-right">€{{ p.price }}</td>
+                    <td class="px-4 py-3 text-right text-slate-500">{{ p.stock|default:"—" }}</td>
+                    <td class="px-4 py-3 text-center">{% if p.is_shortcut %}Si{% else %}—{% endif %}</td>
+                    <td class="px-4 py-3 text-right space-x-3">
+                        <button class="text-slate-600 hover:text-slate-900 edit-btn"
+                                data-id="{{ p.id }}" data-name="{{ p.name }}" data-price="{{ p.price }}"
+                                data-stock="{{ p.stock|default_if_none:'' }}" data-category="{{ p.category.name|default:'' }}"
+                                data-shortcut="{{ p.is_shortcut|yesno:'true,false' }}" data-icon="{{ p.icon }}">Modifica</button>
+                        <button onclick="deleteProduct({{ p.id }})" class="text-red-600 hover:text-red-800">Elimina</button>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="px-4 py-8 text-center text-slate-400">Nessun prodotto inserito</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal -->
+<div id="modal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 w-[440px] space-y-4 shadow-xl max-h-[90vh] overflow-auto">
+        <h2 id="modal-title" class="text-base font-semibold">Nuovo prodotto</h2>
+        <input id="f-id" type="hidden">
+        <div class="space-y-3">
+            <input id="f-name" placeholder="Nome" class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:border-slate-500">
+            <input id="f-category" placeholder="Categoria" class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:border-slate-500">
+            <div class="grid grid-cols-2 gap-3">
+                <input id="f-price" type="number" step="0.01" placeholder="Prezzo" class="px-3 py-2 border border-slate-300 rounded focus:outline-none focus:border-slate-500">
+                <input id="f-stock" type="number" placeholder="Stock (opz.)" class="px-3 py-2 border border-slate-300 rounded focus:outline-none focus:border-slate-500">
+            </div>
+            <label class="flex items-center gap-2 text-slate-600">
+                <input id="f-shortcut" type="checkbox" class="rounded">
+                <span>Mostra come shortcut in cassa</span>
+            </label>
+            <!-- Icon picker -->
+            <div>
+                <div class="text-xs text-slate-500 mb-2">Icona</div>
+                <input id="f-icon" type="hidden">
+                <div id="icon-grid" class="grid grid-cols-8 gap-1.5">
+                    {% for value, label in icon_choices %}
+                    <button type="button" onclick="selectIcon('{{ value }}')"
+                            class="icon-btn p-2 border border-slate-200 rounded hover:border-slate-400 flex items-center justify-center"
+                            data-icon="{{ value }}" title="{{ label }}">
+                        <i data-lucide="{{ value }}" class="w-4 h-4 text-slate-600"></i>
+                    </button>
+                    {% endfor %}
+                    <button type="button" onclick="selectIcon('')"
+                            class="icon-btn p-2 border border-slate-200 rounded hover:border-slate-400 flex items-center justify-center text-xs text-slate-400"
+                            data-icon="" title="Nessuna">—</button>
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-2 pt-2">
+            <button onclick="saveProduct()" class="flex-1 py-2 bg-slate-800 text-white rounded hover:bg-slate-900">Salva</button>
+            <button onclick="closeModal()" class="flex-1 py-2 border border-slate-300 rounded hover:bg-slate-50">Annulla</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function selectIcon(icon) {
+    document.getElementById('f-icon').value = icon;
+    document.querySelectorAll('.icon-btn').forEach(b => {
+        b.classList.toggle('border-slate-800', b.dataset.icon === icon);
+        b.classList.toggle('bg-slate-100', b.dataset.icon === icon);
+    });
+}
+
+function openModal() {
+    document.getElementById('modal-title').textContent = 'Nuovo prodotto';
+    ['f-id','f-name','f-category','f-price','f-stock'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('f-shortcut').checked = false;
+    selectIcon('');
+    document.getElementById('modal').classList.remove('hidden');
+    lucide.createIcons();
+}
+function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+
+document.querySelectorAll('.edit-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.getElementById('modal-title').textContent = 'Modifica prodotto';
+        document.getElementById('f-id').value = btn.dataset.id;
+        document.getElementById('f-name').value = btn.dataset.name;
+        document.getElementById('f-price').value = btn.dataset.price.replace(',', '.');
+        document.getElementById('f-stock').value = btn.dataset.stock;
+        document.getElementById('f-category').value = btn.dataset.category;
+        document.getElementById('f-shortcut').checked = btn.dataset.shortcut === 'true';
+        selectIcon(btn.dataset.icon);
+        document.getElementById('modal').classList.remove('hidden');
+        lucide.createIcons();
+    });
+});
+
+async function saveProduct() {
+    const stock = document.getElementById('f-stock').value;
+    const data = {
+        id: document.getElementById('f-id').value || null,
+        name: document.getElementById('f-name').value,
+        price: document.getElementById('f-price').value,
+        stock: stock === '' ? null : parseInt(stock),
+        category: document.getElementById('f-category').value,
+        is_shortcut: document.getElementById('f-shortcut').checked,
+        icon: document.getElementById('f-icon').value,
+    };
+    await fetch('{% url "cassa:product_save" %}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+        body: JSON.stringify(data)
+    });
+    location.reload();
+}
+
+async function deleteProduct(id) {
+    if (!confirm('Eliminare questo prodotto?')) return;
+    await fetch(`/inventario/delete/${id}/`, {
+        method: 'POST',
+        headers: {'X-CSRFToken': getCookie('csrftoken')}
+    });
+    location.reload();
+}
+</script>
+{% endblock %}

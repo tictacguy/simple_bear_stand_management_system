@@ -1,0 +1,118 @@
+{% extends "cassa/base.html" %}
+{% block title %}Operatori{% endblock %}
+
+{% block content %}
+<div class="p-6">
+    <div class="flex justify-between items-center mb-4">
+        <h1 class="text-lg font-semibold text-slate-800">Operatori</h1>
+        <button onclick="openModal()" class="px-4 py-2 bg-slate-800 text-white rounded hover:bg-slate-900 text-sm">Nuovo operatore</button>
+    </div>
+
+    <div class="bg-white rounded border border-slate-200 overflow-hidden mb-6">
+        <table class="w-full">
+            <thead class="bg-slate-50 text-xs text-slate-500 uppercase">
+                <tr>
+                    <th class="px-4 py-3 text-left">Nome</th>
+                    <th class="px-4 py-3 text-right">Azioni</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for op in operators %}
+                <tr class="border-t border-slate-100 hover:bg-slate-50">
+                    <td class="px-4 py-3 font-medium">{{ op.name }}</td>
+                    <td class="px-4 py-3 text-right space-x-3">
+                        <button class="text-slate-600 hover:text-slate-900 edit-btn" data-id="{{ op.id }}" data-name="{{ op.name }}">Modifica</button>
+                        <button onclick="deleteOperator({{ op.id }})" class="text-red-600 hover:text-red-800">Elimina</button>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="2" class="px-4 py-8 text-center text-slate-400">Nessun operatore</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Storico prelievi -->
+    <h2 class="text-base font-semibold text-slate-800 mb-3">Storico prelievi</h2>
+    <div class="bg-white rounded border border-slate-200 overflow-hidden">
+        <table class="w-full">
+            <thead class="bg-slate-50 text-xs text-slate-500 uppercase">
+                <tr>
+                    <th class="px-4 py-3 text-left">Data</th>
+                    <th class="px-4 py-3 text-left">Operatore</th>
+                    <th class="px-4 py-3 text-right">Importo</th>
+                    <th class="px-4 py-3 text-left">Note</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for w in withdrawals %}
+                <tr class="border-t border-slate-100">
+                    <td class="px-4 py-3 text-slate-500">{{ w.created_at|date:"d/m/Y H:i" }}</td>
+                    <td class="px-4 py-3">{{ w.operator.name }}</td>
+                    <td class="px-4 py-3 text-right font-medium">€{{ w.amount }}</td>
+                    <td class="px-4 py-3 text-slate-500">{{ w.note|default:"—" }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" class="px-4 py-8 text-center text-slate-400">Nessun prelievo registrato</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal -->
+<div id="modal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 w-96 space-y-4 shadow-xl">
+        <h2 id="modal-title" class="text-base font-semibold">Nuovo operatore</h2>
+        <input id="f-id" type="hidden">
+        <input id="f-name" placeholder="Nome operatore" class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:border-slate-500">
+        <div class="flex gap-2 pt-2">
+            <button onclick="saveOperator()" class="flex-1 py-2 bg-slate-800 text-white rounded hover:bg-slate-900">Salva</button>
+            <button onclick="closeModal()" class="flex-1 py-2 border border-slate-300 rounded hover:bg-slate-50">Annulla</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openModal() {
+    document.getElementById('modal-title').textContent = 'Nuovo operatore';
+    document.getElementById('f-id').value = '';
+    document.getElementById('f-name').value = '';
+    document.getElementById('modal').classList.remove('hidden');
+}
+function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+
+document.querySelectorAll('.edit-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.getElementById('modal-title').textContent = 'Modifica operatore';
+        document.getElementById('f-id').value = btn.dataset.id;
+        document.getElementById('f-name').value = btn.dataset.name;
+        document.getElementById('modal').classList.remove('hidden');
+    });
+});
+
+async function saveOperator() {
+    const data = {
+        id: document.getElementById('f-id').value || null,
+        name: document.getElementById('f-name').value,
+    };
+    await fetch('{% url "cassa:operator_save" %}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+        body: JSON.stringify(data)
+    });
+    location.reload();
+}
+
+async function deleteOperator(id) {
+    if (!confirm('Eliminare questo operatore?')) return;
+    await fetch(`/operatori/delete/${id}/`, {
+        method: 'POST',
+        headers: {'X-CSRFToken': getCookie('csrftoken')}
+    });
+    location.reload();
+}
+</script>
+{% endblock %}
