@@ -197,6 +197,15 @@ def andamento(request):
     return render(request, "cassa/andamento.html")
 
 
+# --- Ordini serata ---
+@login_required
+def ordini(request):
+    today_session = get_session_date()
+    start, end = session_range(today_session)
+    orders = Order.objects.filter(created_at__gte=start, created_at__lt=end).prefetch_related("items").order_by("-created_at")
+    return render(request, "cassa/ordini.html", {"orders": orders, "session_date": today_session})
+
+
 @login_required
 def andamento_data(request):
     days = int(request.GET.get("days", 7))

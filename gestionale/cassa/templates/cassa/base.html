@@ -26,6 +26,7 @@
         <div class="px-5 py-4 text-base font-semibold text-white tracking-wide border-b border-slate-700">Al Campetto Music Bar</div>
         <nav class="flex-1 py-3 space-y-0.5 px-2">
             <a href="{% url 'cassa:cassa' %}" class="block px-3 py-2 rounded {% if request.resolver_match.url_name == 'cassa' %}bg-sidebar-active text-white{% else %}hover:bg-sidebar-hover{% endif %}">Cassa</a>
+            <a href="{% url 'cassa:ordini' %}" class="block px-3 py-2 rounded {% if request.resolver_match.url_name == 'ordini' %}bg-sidebar-active text-white{% else %}hover:bg-sidebar-hover{% endif %}">Ordini</a>
             <a href="{% url 'cassa:inventario' %}" class="block px-3 py-2 rounded {% if request.resolver_match.url_name == 'inventario' %}bg-sidebar-active text-white{% else %}hover:bg-sidebar-hover{% endif %}">Inventario</a>
             <a href="{% url 'cassa:andamento' %}" class="block px-3 py-2 rounded {% if request.resolver_match.url_name == 'andamento' %}bg-sidebar-active text-white{% else %}hover:bg-sidebar-hover{% endif %}">Andamento</a>
             <a href="{% url 'cassa:resoconti' %}" class="block px-3 py-2 rounded {% if request.resolver_match.url_name == 'resoconti' %}bg-sidebar-active text-white{% else %}hover:bg-sidebar-hover{% endif %}">Resoconti</a>

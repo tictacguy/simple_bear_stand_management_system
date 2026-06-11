@@ -8,6 +8,7 @@ urlpatterns = [
     path("search/", views.search_products, name="search"),
     path("order/", views.create_order, name="create_order"),
     path("order/delete/<int:pk>/", views.delete_order, name="delete_order"),
+    path("ordini/", views.ordini, name="ordini"),
     path("withdrawal/", views.create_withdrawal, name="create_withdrawal"),
     path("inventario/", views.inventario, name="inventario"),
     path("inventario/save/", views.product_save, name="product_save"),

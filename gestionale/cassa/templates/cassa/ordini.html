@@ -1,0 +1,60 @@
+{% extends "cassa/base.html" %}
+{% block title %}Ordini{% endblock %}
+
+{% block content %}
+<div class="p-6">
+    <div class="flex justify-between items-center mb-4">
+        <h1 class="text-lg font-semibold text-slate-800">Ordini — Serata {{ session_date }}</h1>
+    </div>
+
+    <div class="bg-white rounded border border-slate-200 overflow-hidden">
+        <table class="w-full">
+            <thead class="bg-slate-50 text-xs text-slate-500 uppercase">
+                <tr>
+                    <th class="px-4 py-3 text-left">#</th>
+                    <th class="px-4 py-3 text-left">Ora</th>
+                    <th class="px-4 py-3 text-left">Prodotti</th>
+                    <th class="px-4 py-3 text-center">Pagamento</th>
+                    <th class="px-4 py-3 text-right">Totale</th>
+                    <th class="px-4 py-3 text-right">Azioni</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in orders %}
+                <tr class="border-t border-slate-100 hover:bg-slate-50" id="order-row-{{ order.id }}">
+                    <td class="px-4 py-3 font-medium">{{ order.id }}</td>
+                    <td class="px-4 py-3 text-slate-500">{{ order.created_at|date:"H:i" }}</td>
+                    <td class="px-4 py-3 text-xs text-slate-600">
+                        {% for item in order.items.all %}
+                            {{ item.quantity }}x {{ item.product_name }}{% if not forloop.last %}, {% endif %}
+                        {% endfor %}
+                    </td>
+                    <td class="px-4 py-3 text-center">{{ order.get_payment_method_display }}</td>
+                    <td class="px-4 py-3 text-right font-medium">€{{ order.total }}</td>
+                    <td class="px-4 py-3 text-right">
+                        <button onclick="deleteOrder({{ order.id }})" class="text-red-600 hover:text-red-800 text-sm">Elimina</button>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">Nessun ordine in questa serata</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function deleteOrder(id) {
+    if (!confirm('Eliminare ordine #' + id + '? Lo stock verrà ripristinato.')) return;
+    const res = await fetch(`/order/delete/${id}/`, {
+        method: 'POST',
+        headers: {'X-CSRFToken': getCookie('csrftoken')}
+    });
+    if (res.ok) {
+        document.getElementById('order-row-' + id).remove();
+    }
+}
+</script>
+{% endblock %}
