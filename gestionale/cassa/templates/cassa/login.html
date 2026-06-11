@@ -8,7 +8,7 @@
 <body class="bg-gray-100 flex items-center justify-center h-screen">
     <form method="post" class="bg-white p-8 rounded-lg shadow w-80 space-y-4">
         {% csrf_token %}
-        <h1 class="text-xl font-bold text-center">Sagra Lancenigo - Login</h1>
+        <h1 class="text-xl font-bold text-center">Al Campetto Music Bar</h1>
         {% if form.errors %}<p class="text-red-600 text-sm text-center">Credenziali non valide</p>{% endif %}
         <input name="username" placeholder="Username" class="w-full px-3 py-2 border rounded" required>
         <input name="password" type="password" placeholder="Password" class="w-full px-3 py-2 border rounded" required>

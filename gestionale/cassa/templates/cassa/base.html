@@ -23,7 +23,7 @@
 </head>
 <body class="bg-slate-100 h-screen flex overflow-hidden text-sm text-slate-800">
     <aside class="w-52 bg-sidebar text-slate-300 flex flex-col shrink-0">
-        <div class="px-5 py-4 text-base font-semibold text-white tracking-wide border-b border-slate-700">Sagra Lancenigo</div>
+        <div class="px-5 py-4 text-base font-semibold text-white tracking-wide border-b border-slate-700">Al Campetto Music Bar</div>
         <nav class="flex-1 py-3 space-y-0.5 px-2">
             <a href="{% url 'cassa:cassa' %}" class="block px-3 py-2 rounded {% if request.resolver_match.url_name == 'cassa' %}bg-sidebar-active text-white{% else %}hover:bg-sidebar-hover{% endif %}">Cassa</a>
             <a href="{% url 'cassa:inventario' %}" class="block px-3 py-2 rounded {% if request.resolver_match.url_name == 'inventario' %}bg-sidebar-active text-white{% else %}hover:bg-sidebar-hover{% endif %}">Inventario</a>
