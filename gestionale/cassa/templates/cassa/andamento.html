@@ -41,23 +41,25 @@
     </div>
 
     <!-- Grafici: categoria + pagamento -->
-    <div class="bg-white border border-slate-200 rounded">
-        <button onclick="toggleCard('card-category')" class="w-full px-5 py-3 flex items-center justify-between text-left hover:bg-slate-50">
-            <span class="text-xs text-slate-500 uppercase font-semibold">Incasso per categoria</span>
-            <span id="card-category-icon" class="text-slate-400 text-xs">▼</span>
-        </button>
-        <div id="card-category" class="hidden px-5 pb-5">
-            <canvas id="chart-category" height="180"></canvas>
+    <div class="grid grid-cols-2 gap-4">
+        <div class="bg-white border border-slate-200 rounded">
+            <button onclick="toggleCard('card-category')" class="w-full px-5 py-3 flex items-center justify-between text-left hover:bg-slate-50">
+                <span class="text-xs text-slate-500 uppercase font-semibold">Incasso per categoria</span>
+                <span id="card-category-icon" class="text-slate-400 text-xs">▼</span>
+            </button>
+            <div id="card-category" class="hidden px-5 pb-5">
+                <div class="max-w-[220px] mx-auto"><canvas id="chart-category"></canvas></div>
+            </div>
         </div>
-    </div>
 
-    <div class="bg-white border border-slate-200 rounded">
-        <button onclick="toggleCard('card-payment')" class="w-full px-5 py-3 flex items-center justify-between text-left hover:bg-slate-50">
-            <span class="text-xs text-slate-500 uppercase font-semibold">Metodo di pagamento</span>
-            <span id="card-payment-icon" class="text-slate-400 text-xs">▼</span>
-        </button>
-        <div id="card-payment" class="hidden px-5 pb-5">
-            <canvas id="chart-payment" height="180"></canvas>
+        <div class="bg-white border border-slate-200 rounded">
+            <button onclick="toggleCard('card-payment')" class="w-full px-5 py-3 flex items-center justify-between text-left hover:bg-slate-50">
+                <span class="text-xs text-slate-500 uppercase font-semibold">Metodo di pagamento</span>
+                <span id="card-payment-icon" class="text-slate-400 text-xs">▼</span>
+            </button>
+            <div id="card-payment" class="hidden px-5 pb-5">
+                <div class="max-w-[220px] mx-auto"><canvas id="chart-payment"></canvas></div>
+            </div>
         </div>
     </div>
 
@@ -135,7 +137,7 @@ async function loadData(days) {
             labels: data.by_category.map(c => c.name),
             datasets: [{data: data.by_category.map(c => parseFloat(c.revenue)), backgroundColor: COLORS}]
         },
-        options: {responsive: true, plugins: {legend: {position: 'right', labels: {boxWidth: 12, font: {size: 11}}}}}
+        options: {responsive: true, maintainAspectRatio: true, plugins: {legend: {position: 'bottom', labels: {boxWidth: 10, font: {size: 10}}}}}
     });
 
     const payLabels = data.by_payment.map(p => p.method === 'cash' ? 'Contanti' : 'Carta');
@@ -145,7 +147,7 @@ async function loadData(days) {
             labels: payLabels,
             datasets: [{data: data.by_payment.map(p => parseFloat(p.total)), backgroundColor: ['#10b981', '#0ea5e9']}]
         },
-        options: {responsive: true, plugins: {legend: {position: 'right', labels: {boxWidth: 12, font: {size: 11}}}}}
+        options: {responsive: true, maintainAspectRatio: true, plugins: {legend: {position: 'bottom', labels: {boxWidth: 10, font: {size: 10}}}}}
     });
 
     charts.products = new Chart(document.getElementById('chart-products'), {

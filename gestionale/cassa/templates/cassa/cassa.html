@@ -5,27 +5,30 @@
 {% block content %}
 <div class="flex h-full">
     <!-- Prodotti -->
-    <div class="flex-1 p-4 flex flex-col border-r border-slate-200">
+    <div class="flex-1 p-3 flex flex-col border-r border-slate-200">
         <!-- Searchbar con dropdown -->
-        <div class="relative mb-3">
+        <div class="relative mb-2">
             <input id="search" type="text" placeholder="Cerca prodotto..." autocomplete="off"
-                   class="w-full px-3 py-2 border border-slate-300 rounded bg-white focus:outline-none focus:border-slate-500">
+                   class="w-full px-3 py-1.5 border border-slate-300 rounded bg-white focus:outline-none focus:border-slate-500 text-sm">
             <div id="search-dropdown" class="hidden absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg z-40 max-h-64 overflow-auto"></div>
         </div>
 
         <!-- Shortcut per categoria -->
-        <div id="shortcuts" class="overflow-auto flex-1 space-y-4">
+        <div id="shortcuts" class="overflow-auto flex-1 space-y-3">
             {% regroup products by category as cat_list %}
             {% for cat in cat_list %}
             <div>
-                <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">{{ cat.grouper.name|default:"Senza categoria" }}</div>
+                <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">{{ cat.grouper.name|default:"Senza categoria" }}</div>
                 <div class="grid grid-cols-5 gap-2">
                     {% for p in cat.list %}
-                    <button type="button" data-id="{{ p.id }}" data-name="{{ p.name }}" data-price="{{ p.price }}"
-                            class="shortcut-btn p-3 bg-white border border-slate-200 rounded hover:border-slate-400 hover:bg-slate-50 text-center transition-colors flex flex-col items-center gap-1.5">
-                        {% if p.icon %}<i data-lucide="{{ p.icon }}" class="w-5 h-5 text-slate-500"></i>{% endif %}
-                        <div class="font-medium text-xs truncate w-full">{{ p.name }}</div>
-                        <div class="text-slate-500 text-xs">€{{ p.price }}</div>
+                    <button type="button" data-id="{{ p.id }}" data-name="{{ p.name }}" data-price="{{ p.price }}" data-stock="{{ p.stock|default_if_none:'' }}"
+                            class="shortcut-btn relative p-2 bg-white border border-slate-200 rounded hover:border-slate-400 hover:bg-slate-50 transition-colors {% if p.stock == 0 %}opacity-40 pointer-events-none{% endif %}">
+                        {% if p.stock == 0 %}<span class="absolute -top-1 -right-1 text-[8px] bg-red-500 text-white px-1 rounded">Esaurito</span>{% elif p.stock != None %}<span class="absolute -top-1 -right-1 text-[10px] bg-slate-600 text-white min-w-[18px] h-[18px] rounded-full flex items-center justify-center leading-none">{{ p.stock }}</span>{% endif %}
+                        <div class="flex items-center gap-1 mb-0.5">
+                            {% if p.icon %}<i data-lucide="{{ p.icon }}" class="w-4 h-4 text-slate-500 shrink-0"></i>{% endif %}
+                            <span class="font-medium text-[11px] truncate">{{ p.name }}</span>
+                        </div>
+                        <div class="text-slate-400 text-[10px] text-right">€{{ p.price }}</div>
                     </button>
                     {% endfor %}
                 </div>
@@ -35,39 +38,39 @@
     </div>
 
     <!-- Ordine -->
-    <div class="w-[360px] bg-white flex flex-col">
-        <div class="px-4 py-3 border-b border-slate-200 font-semibold text-slate-700">Ordine corrente</div>
+    <div class="w-[340px] bg-white flex flex-col">
+        <div class="px-3 py-2 border-b border-slate-200 font-semibold text-slate-700 text-sm">Ordine corrente</div>
 
         <div id="order-items" class="flex-1 overflow-auto">
             <table class="w-full">
-                <thead class="bg-slate-50 text-xs text-slate-500 uppercase sticky top-0">
+                <thead class="bg-slate-50 text-[10px] text-slate-500 uppercase sticky top-0">
                     <tr>
-                        <th class="px-4 py-2 text-left">Prodotto</th>
-                        <th class="px-2 py-2 text-center">Qtà</th>
-                        <th class="px-4 py-2 text-right">Subtot.</th>
-                        <th class="px-2 py-2"></th>
+                        <th class="px-3 py-1.5 text-left">Prodotto</th>
+                        <th class="px-2 py-1.5 text-center">Qtà</th>
+                        <th class="px-3 py-1.5 text-right">Subtot.</th>
+                        <th class="px-1 py-1.5"></th>
                     </tr>
                 </thead>
                 <tbody id="order-tbody"></tbody>
             </table>
         </div>
 
-        <div class="border-t border-slate-200 p-4 space-y-3">
+        <div class="border-t border-slate-200 p-3 space-y-2">
             <div class="flex items-center justify-between">
-                <label class="text-slate-500">Sconto %</label>
+                <label class="text-slate-500 text-xs">Sconto %</label>
                 <input id="discount" type="number" min="0" max="100" value="0"
-                       class="w-20 px-2 py-1 border border-slate-300 rounded text-center" onchange="updateTotal()">
+                       class="w-16 px-2 py-1 border border-slate-300 rounded text-center text-xs" onchange="updateTotal()">
             </div>
-            <div class="flex items-center justify-between text-xl font-bold">
+            <div class="flex items-center justify-between text-lg font-bold">
                 <span>Totale</span>
                 <span id="total">€ 0.00</span>
             </div>
             <div class="grid grid-cols-2 gap-2">
-                <button onclick="checkout('cash')" class="py-2.5 bg-slate-800 text-white rounded font-medium hover:bg-slate-900">Contanti</button>
-                <button onclick="checkout('card')" class="py-2.5 bg-slate-600 text-white rounded font-medium hover:bg-slate-700">Carta</button>
+                <button onclick="checkout('cash')" class="py-2 bg-slate-800 text-white rounded font-medium hover:bg-slate-900 text-xs">Contanti</button>
+                <button onclick="checkout('card')" class="py-2 bg-slate-600 text-white rounded font-medium hover:bg-slate-700 text-xs">Carta</button>
             </div>
-            <button onclick="clearOrder()" class="w-full py-2 text-slate-500 border border-slate-300 rounded hover:bg-slate-50">Svuota ordine</button>
-            <button onclick="openWithdrawalModal()" class="w-full py-2 text-orange-600 border border-orange-300 rounded hover:bg-orange-50">Prelievo cassa</button>
+            <button onclick="clearOrder()" class="w-full py-1.5 text-slate-500 border border-slate-300 rounded hover:bg-slate-50 text-xs">Svuota ordine</button>
+            <button onclick="openWithdrawalModal()" class="w-full py-1.5 text-orange-600 border border-orange-300 rounded hover:bg-orange-50 text-xs">Prelievo cassa</button>
         </div>
     </div>
 </div>
@@ -96,21 +99,28 @@
 <script>
 let orderItems = [];
 let searchTimeout = null;
+let lastOrderId = null;
 
 // Shortcut click
 document.querySelectorAll('.shortcut-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-        addItem(
-            parseInt(btn.dataset.id),
-            btn.dataset.name,
-            btn.dataset.price
-        );
+        const stock = btn.dataset.stock;
+        if (stock === '0') return;
+        addItem(parseInt(btn.dataset.id), btn.dataset.name, btn.dataset.price);
     });
 });
 
 function addItem(id, name, price) {
     const p = parseFloat(String(price).replace(',', '.'));
+    const btn = document.querySelector(`.shortcut-btn[data-id="${id}"]`);
+    const stockVal = btn ? btn.dataset.stock : '';
+    const stock = stockVal !== '' ? parseInt(stockVal) : null;
     const existing = orderItems.find(i => i.id === id);
+    const currentQty = existing ? existing.quantity : 0;
+    if (stock !== null && currentQty >= stock) {
+        showToast(`${name}: disponibilità esaurita (${stock})`);
+        return;
+    }
     if (existing) existing.quantity++;
     else orderItems.push({id, name, price: p, quantity: 1});
     renderOrder();
@@ -124,6 +134,15 @@ function removeItem(id) {
 function changeQty(id, delta) {
     const item = orderItems.find(i => i.id === id);
     if (!item) return;
+    if (delta > 0) {
+        const btn = document.querySelector(`.shortcut-btn[data-id="${id}"]`);
+        const stockVal = btn ? btn.dataset.stock : '';
+        const stock = stockVal !== '' ? parseInt(stockVal) : null;
+        if (stock !== null && item.quantity >= stock) {
+            showToast(`${item.name}: disponibilità esaurita (${stock})`);
+            return;
+        }
+    }
     item.quantity += delta;
     if (item.quantity <= 0) removeItem(id);
     else renderOrder();
@@ -133,16 +152,16 @@ function renderOrder() {
     const tbody = document.getElementById('order-tbody');
     tbody.innerHTML = orderItems.map(i => `
         <tr class="border-t border-slate-100">
-            <td class="px-4 py-2">${i.name}</td>
-            <td class="px-2 py-2 text-center">
-                <div class="flex items-center justify-center gap-1">
-                    <button onclick="changeQty(${i.id}, -1)" class="w-6 h-6 border border-slate-300 rounded text-xs hover:bg-slate-100">−</button>
-                    <span class="w-5 text-center">${i.quantity}</span>
-                    <button onclick="changeQty(${i.id}, 1)" class="w-6 h-6 border border-slate-300 rounded text-xs hover:bg-slate-100">+</button>
+            <td class="px-3 py-1.5 text-xs">${i.name}</td>
+            <td class="px-2 py-1.5 text-center">
+                <div class="flex items-center justify-center gap-0.5">
+                    <button onclick="changeQty(${i.id}, -1)" class="w-5 h-5 border border-slate-300 rounded text-[10px] hover:bg-slate-100">−</button>
+                    <span class="w-4 text-center text-xs">${i.quantity}</span>
+                    <button onclick="changeQty(${i.id}, 1)" class="w-5 h-5 border border-slate-300 rounded text-[10px] hover:bg-slate-100">+</button>
                 </div>
             </td>
-            <td class="px-4 py-2 text-right">€${(i.price * i.quantity).toFixed(2)}</td>
-            <td class="px-2 py-2"><button onclick="removeItem(${i.id})" class="text-red-500 hover:text-red-700 text-xs">✕</button></td>
+            <td class="px-3 py-1.5 text-right text-xs">€${(i.price * i.quantity).toFixed(2)}</td>
+            <td class="px-1 py-1.5"><button onclick="removeItem(${i.id})" class="text-red-500 hover:text-red-700 text-[10px]">✕</button></td>
         </tr>
     `).join('');
     updateTotal();
@@ -173,39 +192,52 @@ async function checkout(method) {
     const data = await res.json();
     if (res.ok) {
         clearOrder();
+        lastOrderId = data.order_id;
         showOrderModal(`Ordine #${data.order_id} — €${data.total}`, {order_id: data.order_id, items: itemsSnapshot});
     } else {
         showToast(data.error || 'Errore sconosciuto');
     }
 }
 
-// Searchbar con dropdown in tempo reale
+async function cancelLastOrder() {
+    if (!lastOrderId) return;
+    if (!confirm('Cancellare questo ordine?')) return;
+    const res = await fetch(`/order/delete/${lastOrderId}/`, {
+        method: 'POST',
+        headers: {'X-CSRFToken': getCookie('csrftoken')}
+    });
+    if (res.ok) {
+        closeOrderModal();
+        showToast('Ordine cancellato');
+        lastOrderId = null;
+    }
+}
+
+// Searchbar
 const searchInput = document.getElementById('search');
 const dropdown = document.getElementById('search-dropdown');
 
 searchInput.addEventListener('input', function() {
     const q = this.value.trim();
-    if (!q) {
-        dropdown.classList.add('hidden');
-        return;
-    }
+    if (!q) { dropdown.classList.add('hidden'); return; }
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => {
         fetch(`{% url "cassa:search" %}?q=${encodeURIComponent(q)}`)
             .then(r => r.json())
             .then(products => {
                 if (!products.length) {
-                    dropdown.innerHTML = '<div class="px-4 py-3 text-slate-400 text-sm">Nessun risultato</div>';
+                    dropdown.innerHTML = '<div class="px-4 py-3 text-slate-400 text-xs">Nessun risultato</div>';
                 } else {
-                    dropdown.innerHTML = products.map(p => `
-                        <button type="button" class="w-full px-4 py-2 text-left hover:bg-slate-50 flex items-center gap-3 border-b border-slate-100 last:border-0"
-                                data-id="${p.id}" data-name="${p.name}" data-price="${p.price}">
-                            ${p.icon ? `<i data-lucide="${p.icon}" class="w-4 h-4 text-slate-400 shrink-0"></i>` : '<span class="w-4"></span>'}
-                            <span class="flex-1 truncate text-sm">${p.name}</span>
-                            <span class="text-xs text-slate-500">€${p.price}</span>
-                        </button>
-                    `).join('');
-                    dropdown.querySelectorAll('button').forEach(btn => {
+                    dropdown.innerHTML = products.map(p => {
+                        const outOfStock = p.stock === 0;
+                        return `<button type="button" class="w-full px-3 py-1.5 text-left hover:bg-slate-50 flex items-center gap-2 border-b border-slate-100 last:border-0 ${outOfStock ? 'opacity-40' : ''}"
+                                data-id="${p.id}" data-name="${p.name}" data-price="${p.price}" ${outOfStock ? 'disabled' : ''}>
+                            ${p.icon ? `<i data-lucide="${p.icon}" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i>` : '<span class="w-3.5"></span>'}
+                            <span class="flex-1 truncate text-xs">${p.name}</span>
+                            ${outOfStock ? '<span class="text-[9px] text-red-500">Esaurito</span>' : `<span class="text-[10px] text-slate-500">€${p.price}</span>`}
+                        </button>`;
+                    }).join('');
+                    dropdown.querySelectorAll('button:not([disabled])').forEach(btn => {
                         btn.addEventListener('click', () => {
                             addItem(parseInt(btn.dataset.id), btn.dataset.name, btn.dataset.price);
                             searchInput.value = '';
@@ -219,12 +251,8 @@ searchInput.addEventListener('input', function() {
     }, 150);
 });
 
-searchInput.addEventListener('blur', () => {
-    setTimeout(() => dropdown.classList.add('hidden'), 200);
-});
-searchInput.addEventListener('focus', () => {
-    if (searchInput.value.trim()) dropdown.classList.remove('hidden');
-});
+searchInput.addEventListener('blur', () => { setTimeout(() => dropdown.classList.add('hidden'), 200); });
+searchInput.addEventListener('focus', () => { if (searchInput.value.trim()) dropdown.classList.remove('hidden'); });
 
 // Prelievo cassa
 function openWithdrawalModal() {
@@ -239,7 +267,8 @@ function closeWithdrawalModal() {
 async function submitWithdrawal() {
     const operatorId = document.getElementById('w-operator').value;
     const amount = document.getElementById('w-amount').value;
-    if (!operatorId || !amount) return;
+    if (!operatorId) { showToast('Seleziona un operatore'); return; }
+    if (!amount) { showToast('Inserisci un importo'); return; }
     const res = await fetch('{% url "cassa:create_withdrawal" %}', {
         method: 'POST',
         headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
@@ -248,8 +277,17 @@ async function submitWithdrawal() {
     const data = await res.json();
     if (res.ok) {
         closeWithdrawalModal();
-        showOrderModal(`Prelievo registrato — €${data.amount}`, {order_id: `P-${data.id}`, items: [{quantity: 1, name: `Prelievo: ${data.operator} — €${data.amount}`}]});
+        showToast(`Prelievo €${data.amount} registrato (${data.operator})`);
     }
+}
+
+// Override showToast per messaggi di successo verdi
+function showToast(msg) {
+    const el = document.createElement('div');
+    el.className = 'fixed bottom-5 right-5 z-50 px-5 py-3 rounded shadow-lg text-sm font-medium bg-slate-800 text-white';
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 3000);
 }
 </script>
 {% endblock %}

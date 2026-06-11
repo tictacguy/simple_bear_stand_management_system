@@ -1,5 +1,5 @@
 import json
-from datetime import timedelta
+from datetime import timedelta, time, datetime, date
 from decimal import Decimal
 
 from django.contrib.auth.decorators import login_required
@@ -16,6 +16,27 @@ from openpyxl.utils import get_column_letter
 from .models import Product, Category, Order, OrderItem, Operator, CashWithdrawal
 
 
+# --- Utility: serata (giorno scatta alle 05:00) ---
+NIGHT_CUTOFF = time(5, 0)
+
+
+def get_session_date(dt=None):
+    """Restituisce la data di 'serata': se prima delle 5:00, conta come giorno precedente."""
+    if dt is None:
+        dt = timezone.localtime(timezone.now())
+    if dt.time() < NIGHT_CUTOFF:
+        return (dt - timedelta(days=1)).date()
+    return dt.date()
+
+
+def session_range(session_date):
+    """Restituisce (start, end) datetime per una serata."""
+    tz = timezone.get_current_timezone()
+    start = timezone.make_aware(datetime.combine(session_date, NIGHT_CUTOFF), tz)
+    end = start + timedelta(days=1)
+    return start, end
+
+
 @login_required
 def cassa(request):
     products = Product.objects.select_related("category").filter(is_shortcut=True).order_by("category__name", "name")
@@ -27,7 +48,7 @@ def cassa(request):
 @login_required
 def search_products(request):
     q = request.GET.get("q", "")
-    products = Product.objects.filter(name__icontains=q).values("id", "name", "price", "icon", "category__name")[:20]
+    products = Product.objects.filter(name__icontains=q).values("id", "name", "price", "icon", "stock", "category__name")[:20]
     return JsonResponse(list(products), safe=False)
 
 
@@ -41,6 +62,13 @@ def create_order(request):
 
     if not items:
         return JsonResponse({"error": "Nessun prodotto"}, status=400)
+
+    # Controllo stock
+    for item in items:
+        product = get_object_or_404(Product, pk=item["id"])
+        qty = int(item.get("quantity", 1))
+        if product.stock is not None and product.stock < qty:
+            return JsonResponse({"error": f"{product.name} esaurito (disponibili: {product.stock})"}, status=400)
 
     order = Order.objects.create(user=request.user, payment_method=payment, discount_percent=discount)
 
@@ -59,6 +87,19 @@ def create_order(request):
     order.total = subtotal * (1 - discount / 100)
     order.save(update_fields=["total"])
     return JsonResponse({"order_id": order.pk, "total": str(order.total)})
+
+
+@login_required
+@require_POST
+def delete_order(request, pk):
+    """Cancella un ordine e ripristina lo stock."""
+    order = get_object_or_404(Order, pk=pk)
+    for item in order.items.all():
+        if item.product and item.product.stock is not None:
+            item.product.stock += item.quantity
+            item.product.save(update_fields=["stock"])
+    order.delete()
+    return JsonResponse({"ok": True})
 
 
 # --- Inventario ---
@@ -200,15 +241,20 @@ def andamento_data(request):
     })
 
 
-# --- Resoconti (Excel) ---
+# --- Resoconti (Excel per serata) ---
 @login_required
 def resoconti(request):
-    days = (
-        Order.objects.annotate(date=TruncDate("created_at"))
-        .values("date")
-        .annotate(total=Sum("total"), count=Count("id"))
-        .order_by("-date")
-    )
+    """Lista serate con ordini."""
+    all_orders = Order.objects.all().order_by("-created_at")
+    sessions = {}
+    for order in all_orders:
+        sd = get_session_date(timezone.localtime(order.created_at))
+        if sd not in sessions:
+            sessions[sd] = {"date": sd, "total": Decimal("0"), "count": 0}
+        sessions[sd]["total"] += order.total
+        sessions[sd]["count"] += 1
+
+    days = sorted(sessions.values(), key=lambda x: x["date"], reverse=True)
     return render(request, "cassa/resoconti.html", {"days": days})
 
 
@@ -216,7 +262,6 @@ EURO_FMT = '#,##0.00 "\u20ac"'
 
 
 def _add_category_sheet(wb, items_qs, sheet_title="Per Categoria"):
-    """Aggiunge un foglio con vendite per categoria e prodotto."""
     ws = wb.create_sheet(title=sheet_title)
     ws.append(["Categoria", "Prodotto", "Qtà venduta", "Incasso"])
     for col in range(1, 5):
@@ -244,15 +289,15 @@ def _add_category_sheet(wb, items_qs, sheet_title="Per Categoria"):
         ws.cell(ws.max_row, 4).number_format = EURO_FMT
 
 
-def _build_day_workbook(target_date):
-    """Genera un workbook xlsx per una singola giornata."""
-    orders = Order.objects.filter(created_at__date=target_date).prefetch_related("items")
-    withdrawals = CashWithdrawal.objects.filter(created_at__date=target_date).select_related("operator")
-    items = OrderItem.objects.filter(order__created_at__date=target_date)
+def _build_session_workbook(session_date):
+    """Genera un workbook xlsx per una serata (05:00 -> 05:00 giorno dopo)."""
+    start, end = session_range(session_date)
+    orders = Order.objects.filter(created_at__gte=start, created_at__lt=end).prefetch_related("items")
+    withdrawals = CashWithdrawal.objects.filter(created_at__gte=start, created_at__lt=end).select_related("operator")
+    items = OrderItem.objects.filter(order__created_at__gte=start, order__created_at__lt=end)
 
     wb = openpyxl.Workbook()
 
-    # --- Foglio Ordini ---
     ws = wb.active
     ws.title = "Ordini"
     headers = ["Ordine #", "Ora", "Prodotto", "Qtà", "Prezzo unit.", "Subtotale", "Pagamento", "Sconto %", "Totale ordine"]
@@ -264,7 +309,7 @@ def _build_day_workbook(target_date):
         for i, item in enumerate(order.items.all()):
             row = [
                 order.pk,
-                order.created_at.strftime("%H:%M"),
+                timezone.localtime(order.created_at).strftime("%H:%M"),
                 item.product_name,
                 item.quantity,
                 round(float(item.price), 2),
@@ -285,7 +330,7 @@ def _build_day_workbook(target_date):
         ws.append(["PRELIEVI"])
         ws.append(["Ora", "Operatore", "Importo", "Note"])
         for w in withdrawals:
-            ws.append([w.created_at.strftime("%H:%M"), w.operator.name, round(float(w.amount), 2), w.note])
+            ws.append([timezone.localtime(w.created_at).strftime("%H:%M"), w.operator.name, round(float(w.amount), 2), w.note])
             ws.cell(ws.max_row, 3).number_format = EURO_FMT
 
     ws.append([])
@@ -298,7 +343,6 @@ def _build_day_workbook(target_date):
     ws.append(["", "", "", "", "", "", "", "NETTO", round(total_orders - total_withdrawals, 2)])
     ws.cell(ws.max_row, 9).number_format = EURO_FMT
 
-    # --- Foglio Per Categoria ---
     _add_category_sheet(wb, items)
 
     return wb
@@ -306,30 +350,28 @@ def _build_day_workbook(target_date):
 
 @login_required
 def resoconti_download(request, date):
-    target = date
-    wb = _build_day_workbook(target)
+    session_date = datetime.strptime(date, "%Y-%m-%d").date()
+    wb = _build_session_workbook(session_date)
     response = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    response["Content-Disposition"] = f'attachment; filename="resoconto_{target}.xlsx"'
+    response["Content-Disposition"] = f'attachment; filename="resoconto_serata_{date}.xlsx"'
     wb.save(response)
     return response
 
 
 @login_required
 def resoconti_export_all(request):
-    """Esporta un unico xlsx con un foglio ordini per giornata + foglio riepilogo categorie globale."""
-    dates = (
-        Order.objects.annotate(date=TruncDate("created_at"))
-        .values_list("date", flat=True)
-        .distinct()
-        .order_by("date")
-    )
+    all_orders = Order.objects.all().order_by("created_at")
+    session_dates = set()
+    for order in all_orders:
+        session_dates.add(get_session_date(timezone.localtime(order.created_at)))
 
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
 
-    for d in dates:
-        orders = Order.objects.filter(created_at__date=d).prefetch_related("items")
-        ws = wb.create_sheet(title=str(d))
+    for sd in sorted(session_dates):
+        start, end = session_range(sd)
+        orders = Order.objects.filter(created_at__gte=start, created_at__lt=end).prefetch_related("items")
+        ws = wb.create_sheet(title=str(sd))
         headers = ["Ordine #", "Ora", "Prodotto", "Qtà", "Prezzo unit.", "Subtotale", "Pagamento", "Sconto %", "Totale ordine"]
         ws.append(headers)
         for col in range(1, len(headers) + 1):
@@ -339,7 +381,7 @@ def resoconti_export_all(request):
             for i, item in enumerate(order.items.all()):
                 row = [
                     order.pk,
-                    order.created_at.strftime("%H:%M"),
+                    timezone.localtime(order.created_at).strftime("%H:%M"),
                     item.product_name,
                     item.quantity,
                     round(float(item.price), 2),
@@ -360,7 +402,6 @@ def resoconti_export_all(request):
         ws.append(["", "", "", "", "", "", "", "TOTALE", total_val])
         ws.cell(ws.max_row, 9).number_format = EURO_FMT
 
-    # Foglio riepilogo globale per categoria
     all_items = OrderItem.objects.all()
     _add_category_sheet(wb, all_items, "Riepilogo Categorie")
 

@@ -49,11 +49,13 @@
                 <span id="order-modal-title" class="font-semibold text-base text-green-700"></span>
                 <button onclick="closeOrderModal()" class="text-slate-400 hover:text-slate-600 text-lg">&times;</button>
             </div>
-            <!-- Preview comanda -->
             <div id="order-modal-preview" class="flex-1 overflow-auto p-4 bg-slate-50 font-mono text-xs leading-relaxed"></div>
-            <div class="px-5 py-3 border-t border-slate-200 flex gap-2">
-                <button onclick="printCurrentComanda()" class="flex-1 py-2 bg-slate-800 text-white rounded hover:bg-slate-900 text-sm">Stampa comanda</button>
-                <button onclick="closeOrderModal()" class="flex-1 py-2 border border-slate-300 rounded hover:bg-slate-50 text-sm">Chiudi</button>
+            <div class="px-5 py-3 border-t border-slate-200 space-y-2">
+                <div class="flex gap-2">
+                    <button onclick="printCurrentComanda()" class="flex-1 py-2 bg-slate-800 text-white rounded hover:bg-slate-900 text-sm">Stampa comanda</button>
+                    <button onclick="confirmOrder()" class="flex-1 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm">Conferma</button>
+                </div>
+                <button onclick="cancelLastOrder()" class="w-full py-1.5 text-red-600 border border-red-300 rounded hover:bg-red-50 text-xs">Cancella ordine</button>
             </div>
         </div>
     </div>
@@ -110,13 +112,18 @@
     }
 
     function showToast(msg, type = 'error') {
-        // Toast semplice per errori (in basso)
         const el = document.createElement('div');
-        el.className = `fixed bottom-5 right-5 z-50 px-5 py-3 rounded shadow-lg text-sm font-medium bg-red-600 text-white`;
+        const bg = type === 'success' ? 'bg-green-600' : 'bg-red-600';
+        el.className = `fixed bottom-5 right-5 z-50 px-5 py-3 rounded shadow-lg text-sm font-medium ${bg} text-white`;
         el.textContent = msg;
         document.body.appendChild(el);
         setTimeout(() => el.remove(), 3000);
     }
+    function confirmOrder() {
+        closeOrderModal();
+        showToast('Ordine confermato', 'success');
+    }
+    function cancelLastOrder() { closeOrderModal(); }
     </script>
     {% block scripts %}{% endblock %}
     <script>lucide.createIcons();</script>
