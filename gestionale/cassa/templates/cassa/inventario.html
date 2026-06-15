@@ -34,7 +34,8 @@
                         <button class="text-slate-600 hover:text-slate-900 edit-btn"
                                 data-id="{{ p.id }}" data-name="{{ p.name }}" data-price="{{ p.price }}"
                                 data-stock="{{ p.stock|default_if_none:'' }}" data-category="{{ p.category.name|default:'' }}"
-                                data-shortcut="{{ p.is_shortcut|yesno:'true,false' }}" data-icon="{{ p.icon }}">Modifica</button>
+                                data-shortcut="{{ p.is_shortcut|yesno:'true,false' }}" data-icon="{{ p.icon }}"
+                                data-print="{{ p.print_destinations }}">Modifica</button>
                         <button onclick="deleteProduct({{ p.id }})" class="text-red-600 hover:text-red-800">Elimina</button>
                     </td>
                 </tr>
@@ -62,6 +63,20 @@
                 <input id="f-shortcut" type="checkbox" class="rounded">
                 <span>Mostra come shortcut in cassa</span>
             </label>
+            <!-- Destinazioni stampa -->
+            <div>
+                <div class="text-xs text-slate-500 mb-2">Stampa anche su (oltre a Cassa)</div>
+                <div class="flex gap-4">
+                    <label class="flex items-center gap-1.5 text-slate-600">
+                        <input id="f-print-cucina" type="checkbox" class="rounded">
+                        <span>Cucina</span>
+                    </label>
+                    <label class="flex items-center gap-1.5 text-slate-600">
+                        <input id="f-print-bar" type="checkbox" class="rounded">
+                        <span>Bar</span>
+                    </label>
+                </div>
+            </div>
             <!-- Icon picker -->
             <div>
                 <div class="text-xs text-slate-500 mb-2">Icona</div>
@@ -102,6 +117,8 @@ function openModal() {
     document.getElementById('modal-title').textContent = 'Nuovo prodotto';
     ['f-id','f-name','f-category','f-price','f-stock'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('f-shortcut').checked = false;
+    document.getElementById('f-print-cucina').checked = false;
+    document.getElementById('f-print-bar').checked = false;
     selectIcon('');
     document.getElementById('modal').classList.remove('hidden');
     lucide.createIcons();
@@ -117,6 +134,9 @@ document.querySelectorAll('.edit-btn').forEach(btn => {
         document.getElementById('f-stock').value = btn.dataset.stock;
         document.getElementById('f-category').value = btn.dataset.category;
         document.getElementById('f-shortcut').checked = btn.dataset.shortcut === 'true';
+        const dests = btn.dataset.print || '';
+        document.getElementById('f-print-cucina').checked = dests.includes('cucina');
+        document.getElementById('f-print-bar').checked = dests.includes('bar');
         selectIcon(btn.dataset.icon);
         document.getElementById('modal').classList.remove('hidden');
         lucide.createIcons();
@@ -125,6 +145,9 @@ document.querySelectorAll('.edit-btn').forEach(btn => {
 
 async function saveProduct() {
     const stock = document.getElementById('f-stock').value;
+    const dests = [];
+    if (document.getElementById('f-print-cucina').checked) dests.push('cucina');
+    if (document.getElementById('f-print-bar').checked) dests.push('bar');
     const data = {
         id: document.getElementById('f-id').value || null,
         name: document.getElementById('f-name').value,
@@ -133,6 +156,7 @@ async function saveProduct() {
         category: document.getElementById('f-category').value,
         is_shortcut: document.getElementById('f-shortcut').checked,
         icon: document.getElementById('f-icon').value,
+        print_destinations: dests.join(','),
     };
     await fetch('{% url "cassa:product_save" %}', {
         method: 'POST',

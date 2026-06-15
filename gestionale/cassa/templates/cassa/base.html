@@ -51,6 +51,9 @@
                 <button onclick="discardOrder()" class="text-slate-400 hover:text-slate-600 text-lg">&times;</button>
             </div>
             <div id="order-modal-preview" class="flex-1 overflow-auto p-4 bg-slate-50 font-mono text-xs leading-relaxed"></div>
+            <div class="px-5 py-2">
+                <input id="order-note" type="text" placeholder="Note (opz.)" class="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:border-slate-500">
+            </div>
             <div class="px-5 py-3 border-t border-slate-200 space-y-2">
                 <div class="flex gap-2">
                     <button onclick="confirmAndPrint()" class="flex-1 py-2 bg-slate-800 text-white rounded hover:bg-slate-900 text-sm">Conferma e stampa</button>
@@ -61,27 +64,7 @@
         </div>
     </div>
 
-    <!-- Modale scelta stampante -->
-    <div id="print-picker" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
-        <div class="bg-white rounded-lg shadow-xl w-[320px] p-5">
-            <div class="text-sm font-semibold mb-4 text-slate-700">Scegli destinazione stampa</div>
-            <div class="grid grid-cols-3 gap-3">
-                <button onclick="doPrint('cassa')" class="flex flex-col items-center gap-2 p-4 border border-slate-200 rounded hover:border-slate-400 hover:bg-slate-50">
-                    <i data-lucide="printer" class="w-6 h-6 text-slate-600"></i>
-                    <span class="text-xs font-medium">Cassa</span>
-                </button>
-                <button onclick="doPrint('cucina')" class="flex flex-col items-center gap-2 p-4 border border-slate-200 rounded hover:border-slate-400 hover:bg-slate-50">
-                    <i data-lucide="printer" class="w-6 h-6 text-orange-600"></i>
-                    <span class="text-xs font-medium">Cucina</span>
-                </button>
-                <button onclick="doPrint('bar')" class="flex flex-col items-center gap-2 p-4 border border-slate-200 rounded hover:border-slate-400 hover:bg-slate-50">
-                    <i data-lucide="printer" class="w-6 h-6 text-blue-600"></i>
-                    <span class="text-xs font-medium">Bar</span>
-                </button>
-            </div>
-            <button onclick="closePrintPicker()" class="w-full mt-3 py-1.5 text-slate-500 border border-slate-300 rounded hover:bg-slate-50 text-xs">Annulla</button>
-        </div>
-    </div>
+
 
     <script>
     let currentOrderData = null;
@@ -96,6 +79,7 @@
         currentOrderData = orderData;
         pendingOrder = pending || null;
         document.getElementById('order-modal-title').textContent = msg;
+        document.getElementById('order-note').value = '';
         const preview = document.getElementById('order-modal-preview');
         preview.innerHTML = `
             <div class="text-center font-bold text-sm mb-1">ORDINE</div>
@@ -134,6 +118,8 @@
     }
 
     async function confirmOnly() {
+        const note = document.getElementById('order-note').value;
+        if (pendingOrder) pendingOrder.data.note = note;
         const result = await submitPendingOrder();
         if (result) {
             closeOrderModal();
@@ -143,53 +129,63 @@
     }
 
     async function confirmAndPrint() {
+        const note = document.getElementById('order-note').value;
+        if (pendingOrder) pendingOrder.data.note = note;
         const result = await submitPendingOrder();
         if (result) {
             currentOrderData.order_id = result.order_id;
-            openPrintPicker();
+            currentOrderData.note = note;
+            // Stampa direttamente su tutte le destinazioni configurate
+            autoPrint();
         }
     }
 
-    function openPrintPicker() {
-        document.getElementById('print-picker').classList.remove('hidden');
-        lucide.createIcons();
-    }
-    function closePrintPicker() {
-        document.getElementById('print-picker').classList.add('hidden');
-    }
-    function doPrint(destination) {
-        closePrintPicker();
+    function autoPrint() {
         closeOrderModal();
         if (!currentOrderData) return;
         const data = currentOrderData;
-        const destLabel = destination.charAt(0).toUpperCase() + destination.slice(1);
-        const w = window.open('', '_blank', 'width=300,height=500');
-        const html = `<!DOCTYPE html><html><head><title>Comanda</title>
-        <style>
-            @page { size: 72mm auto; margin: 0; }
-            body{font-family:monospace;width:72mm;margin:0 auto;padding:6mm 4mm;font-size:12px}
-            h2{text-align:center;margin:0 0 4px;font-size:14px}
-            h3{text-align:center;margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:1px}
-            hr{border:none;border-top:1px dashed #000;margin:6px 0}
-            .item{padding:2px 0}
-            .time{text-align:center;font-size:10px;color:#555}
-        </style></head><body>
-        <h2>COMANDA #${data.order_id}</h2>
-        <h3>${destLabel}</h3>
-        <div class="time">${new Date().toLocaleString('it-IT')}</div>
-        <hr>
-        ${data.items.map(i => `<div class="item">${i.quantity}x ${i.name}</div>`).join('')}
-        <hr>
-        <script>window.print();window.onafterprint=()=>window.close();<\/script>
-        </body></html>`;
-        w.document.write(html);
-        w.document.close();
+        const note = data.note || '';
+        const allDests = new Set(['cassa']);
+        (data.items || []).forEach(i => {
+            if (i.printDest) i.printDest.split(',').forEach(d => { if (d.trim()) allDests.add(d.trim()); });
+        });
+        [...allDests].forEach((dest, idx) => {
+            const items = dest === 'cassa' ? data.items :
+                data.items.filter(i => (i.printDest || '').includes(dest));
+            if (!items.length) return;
+            setTimeout(() => {
+                const destLabel = dest.charAt(0).toUpperCase() + dest.slice(1);
+                const w = window.open('', '_blank', 'width=300,height=500');
+                const html = `<!DOCTYPE html><html><head><title>Comanda</title>
+                <style>
+                    @page { size: 72mm auto; margin: 0; }
+                    body{font-family:monospace;width:72mm;margin:0 auto;padding:6mm 4mm;font-size:12px}
+                    h2{text-align:center;margin:0 0 4px;font-size:14px}
+                    h3{text-align:center;margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:1px}
+                    hr{border:none;border-top:1px dashed #000;margin:6px 0}
+                    .item{padding:2px 0}
+                    .time{text-align:center;font-size:10px;color:#555}
+                    .note{margin-top:6px;font-style:italic;font-size:11px}
+                </style></head><body>
+                <h2>COMANDA #${data.order_id}</h2>
+                <h3>${destLabel}</h3>
+                <div class="time">${new Date().toLocaleString('it-IT')}</div>
+                <hr>
+                ${items.map(i => `<div class="item">${i.quantity}x ${i.name}</div>`).join('')}
+                ${note ? `<hr><div class="note">Note: ${note}</div>` : ''}
+                <hr>
+                <script>window.print();window.onafterprint=()=>window.close();<\/script>
+                </body></html>`;
+                w.document.write(html);
+                w.document.close();
+            }, idx * 500);
+        });
         showToast('Ordine #' + data.order_id + ' confermato', 'success');
         if (typeof onOrderConfirmed === 'function') onOrderConfirmed();
     }
 
     function printCurrentComanda() {
-        openPrintPicker();
+        autoPrint();
     }
 
     function showToast(msg, type = 'error') {

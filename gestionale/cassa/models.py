@@ -23,12 +23,18 @@ class Product(models.Model):
         ("utensils", "Piatto"), ("soup", "Zuppa"), ("candy", "Caramella"), ("wheat", "Pane"),
     ]
 
+    PRINT_DEST_CHOICES = [
+        ("cucina", "Cucina"),
+        ("bar", "Bar"),
+    ]
+
     name = models.CharField(max_length=100)
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
     price = models.DecimalField(max_digits=7, decimal_places=2)
     stock = models.PositiveIntegerField(null=True, blank=True)
     icon = models.CharField(max_length=30, blank=True, default="", choices=ICON_CHOICES)
     is_shortcut = models.BooleanField(default=False, help_text="Mostra come tab rapida in cassa")
+    print_destinations = models.CharField(max_length=50, blank=True, default="", help_text="Destinazioni extra: cucina,bar")
 
     def __str__(self):
         return f"{self.name} - €{self.price}"
@@ -42,6 +48,7 @@ class Order(models.Model):
     payment_method = models.CharField(max_length=4, choices=PAYMENT_CHOICES)
     discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     total = models.DecimalField(max_digits=9, decimal_places=2, default=0)
+    note = models.CharField(max_length=300, blank=True, default="")
 
     def __str__(self):
         return f"Ordine #{self.pk} - €{self.total}"

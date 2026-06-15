@@ -48,7 +48,7 @@ def cassa(request):
 @login_required
 def search_products(request):
     q = request.GET.get("q", "")
-    products = Product.objects.filter(name__icontains=q).values("id", "name", "price", "icon", "stock", "category__name")[:20]
+    products = Product.objects.filter(name__icontains=q).values("id", "name", "price", "icon", "stock", "print_destinations", "category__name")[:20]
     return JsonResponse(list(products), safe=False)
 
 
@@ -70,7 +70,7 @@ def create_order(request):
         if product.stock is not None and product.stock < qty:
             return JsonResponse({"error": f"{product.name} esaurito (disponibili: {product.stock})"}, status=400)
 
-    order = Order.objects.create(user=request.user, payment_method=payment, discount_percent=discount)
+    order = Order.objects.create(user=request.user, payment_method=payment, discount_percent=discount, note=data.get("note", ""))
 
     subtotal = Decimal("0")
     for item in items:
@@ -133,12 +133,14 @@ def product_save(request):
         p.stock = stock
         p.is_shortcut = data.get("is_shortcut", p.is_shortcut)
         p.icon = data.get("icon", p.icon)
+        p.print_destinations = data.get("print_destinations", p.print_destinations)
         p.category = cat
         p.save()
     else:
         p = Product.objects.create(
             name=data["name"], price=price, stock=stock,
-            is_shortcut=data.get("is_shortcut", False), icon=data.get("icon", ""), category=cat
+            is_shortcut=data.get("is_shortcut", False), icon=data.get("icon", ""),
+            print_destinations=data.get("print_destinations", ""), category=cat
         )
     return JsonResponse({"id": p.pk})
 
