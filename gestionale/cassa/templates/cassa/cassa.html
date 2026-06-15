@@ -99,7 +99,6 @@
 <script>
 let orderItems = [];
 let searchTimeout = null;
-let lastOrderId = null;
 
 // Shortcut click
 document.querySelectorAll('.shortcut-btn').forEach(btn => {
@@ -184,33 +183,18 @@ async function checkout(method) {
     if (!orderItems.length) return;
     const discount = parseFloat(document.getElementById('discount').value) || 0;
     const itemsSnapshot = orderItems.map(i => ({...i}));
-    const res = await fetch('{% url "cassa:create_order" %}', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
-        body: JSON.stringify({items: orderItems, payment_method: method, discount_percent: discount})
-    });
-    const data = await res.json();
-    if (res.ok) {
-        clearOrder();
-        lastOrderId = data.order_id;
-        showOrderModal(`Ordine #${data.order_id} — €${data.total}`, {order_id: data.order_id, items: itemsSnapshot});
-    } else {
-        showToast(data.error || 'Errore sconosciuto');
-    }
+    const methodLabel = method === 'cash' ? 'Contanti' : 'Carta';
+    // Mostra modale di conferma senza creare l'ordine
+    showOrderModal(`${methodLabel} — €${(orderItems.reduce((s,i) => s + i.price * i.quantity, 0) * (1 - discount/100)).toFixed(2)}`, 
+        {order_id: '...', items: itemsSnapshot},
+        {url: '{% url "cassa:create_order" %}', data: {items: orderItems, payment_method: method, discount_percent: discount}}
+    );
+    clearOrder();
 }
 
-async function cancelLastOrder() {
-    if (!lastOrderId) return;
-    if (!confirm('Cancellare questo ordine?')) return;
-    const res = await fetch(`/order/delete/${lastOrderId}/`, {
-        method: 'POST',
-        headers: {'X-CSRFToken': getCookie('csrftoken')}
-    });
-    if (res.ok) {
-        closeOrderModal();
-        showToast('Ordine cancellato');
-        lastOrderId = null;
-    }
+function onOrderConfirmed() {
+    // Ricarica pagina per aggiornare stock nelle card
+    location.reload();
 }
 
 // Searchbar

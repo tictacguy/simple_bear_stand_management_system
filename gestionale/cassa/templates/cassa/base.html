@@ -47,16 +47,16 @@
     <div id="order-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
         <div class="bg-white rounded-lg shadow-xl w-[340px] max-h-[80vh] flex flex-col">
             <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
-                <span id="order-modal-title" class="font-semibold text-base text-green-700"></span>
-                <button onclick="closeOrderModal()" class="text-slate-400 hover:text-slate-600 text-lg">&times;</button>
+                <span id="order-modal-title" class="font-semibold text-base text-slate-700"></span>
+                <button onclick="discardOrder()" class="text-slate-400 hover:text-slate-600 text-lg">&times;</button>
             </div>
             <div id="order-modal-preview" class="flex-1 overflow-auto p-4 bg-slate-50 font-mono text-xs leading-relaxed"></div>
             <div class="px-5 py-3 border-t border-slate-200 space-y-2">
                 <div class="flex gap-2">
-                    <button onclick="openPrintPicker()" class="flex-1 py-2 bg-slate-800 text-white rounded hover:bg-slate-900 text-sm">Stampa comanda</button>
-                    <button onclick="confirmOrder()" class="flex-1 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm">Conferma</button>
+                    <button onclick="confirmAndPrint()" class="flex-1 py-2 bg-slate-800 text-white rounded hover:bg-slate-900 text-sm">Conferma e stampa</button>
+                    <button onclick="confirmOnly()" class="flex-1 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm">Conferma</button>
                 </div>
-                <button onclick="cancelLastOrder()" class="w-full py-1.5 text-red-600 border border-red-300 rounded hover:bg-red-50 text-xs">Cancella ordine</button>
+                <button onclick="discardOrder()" class="w-full py-1.5 text-red-600 border border-red-300 rounded hover:bg-red-50 text-xs">Annulla ordine</button>
             </div>
         </div>
     </div>
@@ -85,18 +85,20 @@
 
     <script>
     let currentOrderData = null;
+    let pendingOrder = null; // {items, payment_method, discount_percent}
 
     function getCookie(name) {
         const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
         return v ? v.pop() : '';
     }
 
-    function showOrderModal(msg, orderData) {
+    function showOrderModal(msg, orderData, pending) {
         currentOrderData = orderData;
+        pendingOrder = pending || null;
         document.getElementById('order-modal-title').textContent = msg;
         const preview = document.getElementById('order-modal-preview');
         preview.innerHTML = `
-            <div class="text-center font-bold text-sm mb-1">COMANDA #${orderData.order_id}</div>
+            <div class="text-center font-bold text-sm mb-1">ORDINE</div>
             <div class="text-center text-[10px] text-slate-500 mb-2">${new Date().toLocaleString('it-IT')}</div>
             <div class="border-t border-dashed border-slate-400 my-2"></div>
             ${orderData.items.map(i => `<div class="flex justify-between py-0.5"><span>${i.quantity}x ${i.name}</span></div>`).join('')}
@@ -108,6 +110,44 @@
     function closeOrderModal() {
         document.getElementById('order-modal').classList.add('hidden');
         currentOrderData = null;
+        pendingOrder = null;
+    }
+
+    function discardOrder() {
+        closeOrderModal();
+    }
+
+    async function submitPendingOrder() {
+        if (!pendingOrder) return null;
+        const res = await fetch(pendingOrder.url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+            body: JSON.stringify(pendingOrder.data)
+        });
+        const result = await res.json();
+        if (!res.ok) {
+            showToast(result.error || 'Errore');
+            return null;
+        }
+        pendingOrder = null;
+        return result;
+    }
+
+    async function confirmOnly() {
+        const result = await submitPendingOrder();
+        if (result) {
+            closeOrderModal();
+            showToast('Ordine #' + result.order_id + ' confermato', 'success');
+            if (typeof onOrderConfirmed === 'function') onOrderConfirmed();
+        }
+    }
+
+    async function confirmAndPrint() {
+        const result = await submitPendingOrder();
+        if (result) {
+            currentOrderData.order_id = result.order_id;
+            openPrintPicker();
+        }
     }
 
     function openPrintPicker() {
@@ -119,6 +159,7 @@
     }
     function doPrint(destination) {
         closePrintPicker();
+        closeOrderModal();
         if (!currentOrderData) return;
         const data = currentOrderData;
         const destLabel = destination.charAt(0).toUpperCase() + destination.slice(1);
@@ -143,6 +184,8 @@
         </body></html>`;
         w.document.write(html);
         w.document.close();
+        showToast('Ordine #' + data.order_id + ' confermato', 'success');
+        if (typeof onOrderConfirmed === 'function') onOrderConfirmed();
     }
 
     function printCurrentComanda() {
@@ -157,10 +200,7 @@
         document.body.appendChild(el);
         setTimeout(() => el.remove(), 3000);
     }
-    function confirmOrder() {
-        closeOrderModal();
-        showToast('Ordine confermato', 'success');
-    }
+    function confirmOrder() { confirmOnly(); }
     function cancelLastOrder() { closeOrderModal(); }
     </script>
     {% block scripts %}{% endblock %}
