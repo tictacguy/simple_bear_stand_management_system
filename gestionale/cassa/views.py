@@ -155,6 +155,10 @@ def _send_to_printer(printer, order, items, note, dest_label):
         NORMAL = GS + b'\x21\x00'
         CUT = GS + b'\x56\x00'
 
+        # Larghezza caratteri (default 32 per 58mm, 48 per 80mm)
+        line_width = printer.paper_width_chars
+        separator = ("-" * line_width + "\n").encode()
+
         data = bytearray()
         data += INIT
         data += CENTER
@@ -166,15 +170,39 @@ def _send_to_printer(printer, order, items, note, dest_label):
         data += f"{tz.localtime(order.created_at).strftime('%d/%m/%Y %H:%M')}\n".encode()
         data += b'\n'
         data += LEFT
-        data += b'--------------------------------\n'
+        data += separator
         data += BOLD_ON
         for item in items:
-            data += f"{item.quantity}x {item.product_name}\n".encode()
+            line = f"{item.quantity}x {item.product_name}"
+            if printer.is_default:
+                price_str = f"{float(item.price * item.quantity):.2f}"
+                padding = line_width - len(line) - len(price_str)
+                if padding > 0:
+                    line += " " * padding + price_str
+                else:
+                    line += " " + price_str
+            data += (line + "\n").encode()
         data += BOLD_OFF
-        data += b'--------------------------------\n'
+        data += separator
+        # Totale solo su stampante cassa
+        if printer.is_default:
+            if order.discount_percent > 0:
+                data += CENTER
+                data += f"Sconto: {order.discount_percent}%\n".encode()
+            data += CENTER
+            data += BOLD_ON
+            data += DOUBLE_H
+            total_line = f"TOTALE: EUR {float(order.total):.2f}"
+            data += (total_line + "\n").encode()
+            data += NORMAL
+            data += BOLD_OFF
+            data += separator
+            data += CENTER
+            data += f"Pagamento: {order.get_payment_method_display()}\n".encode()
+            data += LEFT
         if note:
             data += f"Note: {note}\n".encode()
-            data += b'--------------------------------\n'
+            data += separator
         data += b'\n\n\n'
         data += CUT
 
@@ -535,12 +563,14 @@ def printer_save(request):
         p.name = data["name"]
         p.ip_address = data["ip_address"]
         p.port = int(data.get("port", 9100))
+        p.paper_width_chars = int(data.get("paper_width_chars", 32))
         p.is_default = data.get("is_default", False)
         p.save()
     else:
         p = Printer.objects.create(
             name=data["name"], ip_address=data["ip_address"],
-            port=int(data.get("port", 9100)), is_default=data.get("is_default", False)
+            port=int(data.get("port", 9100)), is_default=data.get("is_default", False),
+            paper_width_chars=int(data.get("paper_width_chars", 32))
         )
     return JsonResponse({"id": p.pk})
 

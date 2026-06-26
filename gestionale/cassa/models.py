@@ -7,6 +7,7 @@ class Printer(models.Model):
     ip_address = models.GenericIPAddressField()
     port = models.PositiveIntegerField(default=9100)
     is_default = models.BooleanField(default=False, help_text="Stampante cassa (default)")
+    paper_width_chars = models.PositiveIntegerField(default=48, help_text="Caratteri per riga (80mm = 48)")
 
     def __str__(self):
         return f"{self.name} ({self.ip_address}:{self.port})"

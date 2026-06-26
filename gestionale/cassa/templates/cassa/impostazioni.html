@@ -2,12 +2,12 @@
 {% block title %}Impostazioni{% endblock %}
 
 {% block content %}
-<div class="p-6">
+<div class="p-6 space-y-5">
     <h1 class="text-lg font-semibold text-slate-800 mb-1">Impostazioni</h1>
-    <p class="text-xs text-slate-500 mb-5">Gestisci le stampanti collegate alla rete. La stampante di default è quella della cassa.</p>
+    <p class="text-xs text-slate-500">Gestisci le stampanti e adatta il contenuto alla carta.</p>
 
-    <!-- Stampanti configurate -->
-    <div class="bg-white rounded border border-slate-200 overflow-hidden mb-5">
+    <!-- Stampanti -->
+    <div class="bg-white rounded border border-slate-200 overflow-hidden">
         <div class="px-4 py-3 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
             <span class="text-xs font-semibold text-slate-500 uppercase">Stampanti</span>
             <button onclick="openModal()" class="px-3 py-1.5 bg-slate-800 text-white rounded text-xs hover:bg-slate-900">Aggiungi stampante</button>
@@ -16,9 +16,10 @@
             <thead class="text-xs text-slate-500 uppercase bg-slate-50">
                 <tr>
                     <th class="px-4 py-2 text-left">Nome</th>
-                    <th class="px-4 py-2 text-left">Indirizzo IP</th>
+                    <th class="px-4 py-2 text-left">IP</th>
                     <th class="px-4 py-2 text-center">Porta</th>
-                    <th class="px-4 py-2 text-center">Default</th>
+                    <th class="px-4 py-2 text-center">Car./riga</th>
+                    <th class="px-4 py-2 text-center">Ruolo</th>
                     <th class="px-4 py-2 text-right">Azioni</th>
                 </tr>
             </thead>
@@ -26,32 +27,73 @@
                 {% for p in printers %}
                 <tr class="border-t border-slate-100 hover:bg-slate-50">
                     <td class="px-4 py-3 font-medium">{{ p.name }}</td>
-                    <td class="px-4 py-3 font-mono text-slate-600">{{ p.ip_address }}</td>
+                    <td class="px-4 py-3 font-mono text-slate-600 text-xs">{{ p.ip_address }}</td>
                     <td class="px-4 py-3 text-center text-slate-500">{{ p.port }}</td>
-                    <td class="px-4 py-3 text-center">{% if p.is_default %}<span class="text-green-600 font-semibold">Cassa</span>{% else %}—{% endif %}</td>
+                    <td class="px-4 py-3 text-center text-slate-500">{{ p.paper_width_chars }}</td>
+                    <td class="px-4 py-3 text-center">{% if p.is_default %}<span class="text-green-600 font-semibold text-xs">Cassa</span>{% else %}<span class="text-slate-400 text-xs">Extra</span>{% endif %}</td>
                     <td class="px-4 py-3 text-right space-x-2">
                         <button onclick="testPrinter(this, {{ p.id }})" class="text-blue-600 hover:text-blue-800 text-xs">Test</button>
                         <button class="text-slate-600 hover:text-slate-900 text-xs edit-btn"
                                 data-id="{{ p.id }}" data-name="{{ p.name }}" data-ip="{{ p.ip_address }}"
-                                data-port="{{ p.port }}" data-default="{{ p.is_default|yesno:'true,false' }}">Modifica</button>
+                                data-port="{{ p.port }}" data-default="{{ p.is_default|yesno:'true,false' }}"
+                                data-paper="{{ p.paper_width_chars }}">Modifica</button>
                         <button onclick="deletePrinter({{ p.id }})" class="text-red-600 hover:text-red-800 text-xs">Elimina</button>
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="5" class="px-4 py-8 text-center text-slate-400">Nessuna stampante configurata</td></tr>
+                <tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">Nessuna stampante configurata</td></tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 
+    <!-- Layout stampa -->
+    <div class="bg-white rounded border border-slate-200 p-5">
+        <div class="text-sm font-semibold text-slate-700 mb-1">Adatta contenuto alla carta</div>
+        <p class="text-xs text-slate-500 mb-4">Regola i caratteri per riga fino a quando il contenuto si adatta perfettamente alla tua carta da 80mm. La preview mostra esattamente come apparirà sullo scontrino.</p>
+
+        <div class="flex gap-6 items-start">
+            <!-- Controlli -->
+            <div class="space-y-4 w-56 shrink-0">
+                <div>
+                    <label class="text-xs text-slate-500 block mb-1">Caratteri per riga</label>
+                    <div class="flex items-center gap-2">
+                        <button onclick="adjustWidth(-1)" class="w-8 h-8 border border-slate-300 rounded hover:bg-slate-100 text-lg">−</button>
+                        <input id="preview-width" type="number" value="48" min="20" max="64" onchange="updatePreview()" class="w-16 px-2 py-1.5 border border-slate-300 rounded text-center font-mono">
+                        <button onclick="adjustWidth(1)" class="w-8 h-8 border border-slate-300 rounded hover:bg-slate-100 text-lg">+</button>
+                    </div>
+                    <div class="text-[10px] text-slate-400 mt-1">Standard 80mm: 42-48 caratteri</div>
+                </div>
+                <div>
+                    <label class="text-xs text-slate-500 block mb-1">Tipo scontrino</label>
+                    <select id="preview-type" onchange="updatePreview()" class="w-full px-3 py-2 border border-slate-300 rounded text-sm">
+                        <option value="cassa">Cassa (con totale)</option>
+                        <option value="comanda">Comanda (cucina/bar)</option>
+                    </select>
+                </div>
+                <div class="text-[10px] text-slate-400 bg-slate-50 p-2 rounded">
+                    Se il testo va a capo sulla stampante, riduci i caratteri.<br>
+                    Se c'è troppo spazio vuoto, aumentali.
+                </div>
+            </div>
+
+            <!-- Preview -->
+            <div class="flex-1 flex justify-center">
+                <div class="bg-gray-50 p-3 rounded border border-slate-200">
+                    <div id="receipt-preview" class="bg-white shadow-md mx-auto p-4 font-mono text-[11px] leading-[1.6] whitespace-pre" style="min-height:320px"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Guida -->
-    <div class="mt-5 bg-slate-50 border border-slate-200 rounded p-4 text-xs text-slate-600 space-y-1">
+    <div class="bg-slate-50 border border-slate-200 rounded p-4 text-xs text-slate-600 space-y-1">
         <div class="font-semibold text-slate-700 mb-1">Guida rapida</div>
-        <div>1. Collega le stampanti alla stessa rete WiFi/LAN del PC cassa</div>
-        <div>2. Aggiungi ciascuna stampante con nome (es. "Cucina") e IP trovato</div>
-        <div>3. Imposta come "Default" quella della cassa</div>
-        <div>4. Usa "Test" per verificare che la connessione funzioni</div>
-        <div>5. Nell'inventario, assegna a ciascun prodotto le stampanti extra</div>
+        <div>1. Collega le stampanti Qian Anjet80 alla stessa rete del PC cassa</div>
+        <div>2. Aggiungi stampante con IP (es. 192.168.1.240) e porta 9100</div>
+        <div>3. Usa la preview qui sopra per regolare i caratteri per riga</div>
+        <div>4. Premi "Test" per stampare una pagina di prova</div>
+        <div>5. Nell'inventario, assegna le stampanti extra ai prodotti</div>
     </div>
 </div>
 
@@ -69,13 +111,19 @@
                 <label class="text-xs text-slate-500 block mb-1">Indirizzo IP</label>
                 <input id="f-ip" placeholder="192.168.1.240" class="w-full px-3 py-2 border border-slate-300 rounded font-mono focus:outline-none focus:border-slate-500">
             </div>
-            <div>
-                <label class="text-xs text-slate-500 block mb-1">Porta</label>
-                <input id="f-port" type="number" value="9100" class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:border-slate-500">
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs text-slate-500 block mb-1">Porta</label>
+                    <input id="f-port" type="number" value="9100" class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:border-slate-500">
+                </div>
+                <div>
+                    <label class="text-xs text-slate-500 block mb-1">Caratteri/riga</label>
+                    <input id="f-paper" type="number" value="48" min="20" max="64" class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:border-slate-500">
+                </div>
             </div>
             <label class="flex items-center gap-2 text-slate-600">
                 <input id="f-default" type="checkbox" class="rounded">
-                <span>Stampante cassa (default)</span>
+                <span>Stampante cassa (default — stampa totale)</span>
             </label>
         </div>
         <div class="flex gap-2 pt-2">
@@ -94,6 +142,7 @@ function openModal(ip) {
     document.getElementById('f-name').value = '';
     document.getElementById('f-ip').value = ip || '';
     document.getElementById('f-port').value = '9100';
+    document.getElementById('f-paper').value = '48';
     document.getElementById('f-default').checked = false;
     document.getElementById('modal').classList.remove('hidden');
 }
@@ -106,6 +155,7 @@ document.querySelectorAll('.edit-btn').forEach(btn => {
         document.getElementById('f-name').value = btn.dataset.name;
         document.getElementById('f-ip').value = btn.dataset.ip;
         document.getElementById('f-port').value = btn.dataset.port;
+        document.getElementById('f-paper').value = btn.dataset.paper;
         document.getElementById('f-default').checked = btn.dataset.default === 'true';
         document.getElementById('modal').classList.remove('hidden');
     });
@@ -117,6 +167,7 @@ async function savePrinter() {
         name: document.getElementById('f-name').value,
         ip_address: document.getElementById('f-ip').value,
         port: document.getElementById('f-port').value,
+        paper_width_chars: parseInt(document.getElementById('f-paper').value),
         is_default: document.getElementById('f-default').checked,
     };
     await fetch('{% url "cassa:printer_save" %}', {
@@ -158,61 +209,68 @@ async function testPrinter(btn, id) {
     }
 }
 
-async function scanNetwork() {
-    const btn = document.getElementById('scan-btn');
-    const status = document.getElementById('scan-status');
-    const statusText = document.getElementById('scan-status-text');
-    const progress = document.getElementById('scan-progress');
-    const results = document.getElementById('scan-results');
-
-    btn.disabled = true;
-    btn.textContent = 'Scansione...';
-    btn.classList.add('opacity-50');
-    status.classList.remove('hidden');
-    results.classList.add('hidden');
-
-    // Simula progresso durante l'attesa
-    let pct = 0;
-    const interval = setInterval(() => {
-        pct = Math.min(pct + Math.random() * 8, 90);
-        progress.style.width = pct + '%';
-        statusText.textContent = `Scansione in corso... ${Math.round(pct)}%`;
-    }, 300);
-
-    try {
-        const res = await fetch('{% url "cassa:network_scan" %}');
-        const data = await res.json();
-
-        clearInterval(interval);
-        progress.style.width = '100%';
-        statusText.textContent = `Completata — subnet ${data.subnet}.x (il tuo IP: ${data.local_ip})`;
-
-        setTimeout(() => status.classList.add('hidden'), 2000);
-
-        const list = document.getElementById('scan-list');
-        results.classList.remove('hidden');
-
-        if (!data.devices.length) {
-            list.innerHTML = '<div class="text-slate-400 text-xs py-2">Nessun dispositivo trovato</div>';
-        } else {
-            list.innerHTML = data.devices.map(d => `
-                <div class="flex items-center justify-between p-2 bg-slate-50 rounded border border-slate-200">
-                    <div class="flex items-center gap-2">
-                        <span class="font-mono text-xs">${d.ip}</span>
-                        ${d.printer ? '<span class="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded">Porta 9100</span>' : '<span class="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">Dispositivo</span>'}
-                    </div>
-                    <button onclick="openModal('${d.ip}')" class="px-2 py-1 bg-slate-800 text-white rounded text-[10px] hover:bg-slate-900">Aggiungi</button>
-                </div>
-            `).join('');
-        }
-    } catch(e) {
-        clearInterval(interval);
-        statusText.textContent = 'Errore durante la scansione';
-    } finally {
-        btn.disabled = false;
-        btn.textContent = 'Scansiona rete';
-        btn.classList.remove('opacity-50');
-    }
+// Preview
+function adjustWidth(delta) {
+    const input = document.getElementById('preview-width');
+    input.value = Math.max(20, Math.min(64, parseInt(input.value) + delta));
+    updatePreview();
 }
+
+function updatePreview() {
+    const w = parseInt(document.getElementById('preview-width').value);
+    const type = document.getElementById('preview-type').value;
+    const sep = '\u2500'.repeat(w);
+    const now = new Date().toLocaleString('it-IT');
+
+    let lines = [];
+    lines.push(center('COMANDA #42', w));
+    lines.push(center(type === 'cassa' ? 'CASSA' : 'CUCINA', w));
+    lines.push(center(now, w));
+    lines.push('');
+    lines.push(sep);
+    lines.push('');
+
+    if (type === 'cassa') {
+        lines.push(padLine('2x Birra Media', '9.00', w));
+        lines.push(padLine('1x Panino Classico', '5.50', w));
+        lines.push(padLine('3x Caffe Espresso', '4.50', w));
+        lines.push('');
+        lines.push(sep);
+        lines.push('');
+        lines.push(center('TOTALE: EUR 19.00', w));
+        lines.push('');
+        lines.push(sep);
+        lines.push('');
+        lines.push(center('Pagamento: Contanti', w));
+    } else {
+        lines.push('  2x Birra Media');
+        lines.push('  1x Panino Classico');
+        lines.push('  3x Caffe Espresso');
+        lines.push('');
+        lines.push(sep);
+    }
+    lines.push('');
+    lines.push(center('Note: Senza cipolla', w));
+    lines.push('');
+    lines.push(sep);
+
+    const el = document.getElementById('receipt-preview');
+    el.textContent = lines.join('\n');
+    // Larghezza proporzionale ai caratteri (monospace ~7.2px per char a 11px font)
+    el.style.width = (w * 7.2 + 32) + 'px';
+}
+
+function center(text, w) {
+    if (text.length >= w) return text;
+    const pad = Math.floor((w - text.length) / 2);
+    return ' '.repeat(pad) + text;
+}
+
+function padLine(left, right, w) {
+    const space = Math.max(1, w - left.length - right.length);
+    return left + ' '.repeat(space) + right;
+}
+
+updatePreview();
 </script>
 {% endblock %}
