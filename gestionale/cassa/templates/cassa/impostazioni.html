@@ -59,10 +59,10 @@
                     <label class="text-xs text-slate-500 block mb-1">Caratteri per riga</label>
                     <div class="flex items-center gap-2">
                         <button onclick="adjustWidth(-1)" class="w-8 h-8 border border-slate-300 rounded hover:bg-slate-100 text-lg">−</button>
-                        <input id="preview-width" type="number" value="48" min="20" max="64" onchange="updatePreview()" class="w-16 px-2 py-1.5 border border-slate-300 rounded text-center font-mono">
+                        <input id="preview-width" type="number" value="48" min="20" max="80" onchange="updatePreview()" class="w-16 px-2 py-1.5 border border-slate-300 rounded text-center font-mono">
                         <button onclick="adjustWidth(1)" class="w-8 h-8 border border-slate-300 rounded hover:bg-slate-100 text-lg">+</button>
                     </div>
-                    <div class="text-[10px] text-slate-400 mt-1">Standard 80mm: 42-48 caratteri</div>
+                    <div class="text-[10px] text-slate-400 mt-1">80mm: tipicamente 42-48, prova fino a trovare il giusto</div>
                 </div>
                 <div>
                     <label class="text-xs text-slate-500 block mb-1">Tipo scontrino</label>
@@ -80,7 +80,7 @@
             <!-- Preview -->
             <div class="flex-1 flex justify-center">
                 <div class="bg-gray-50 p-3 rounded border border-slate-200">
-                    <div id="receipt-preview" class="bg-white shadow-md mx-auto p-4 font-mono text-[11px] leading-[1.6] whitespace-pre" style="min-height:320px"></div>
+                    <div id="receipt-preview" class="bg-white shadow-md mx-auto p-4 font-mono text-[11px] leading-[1.6] whitespace-pre"></div>
                 </div>
             </div>
         </div>
@@ -212,7 +212,7 @@ async function testPrinter(btn, id) {
 // Preview
 function adjustWidth(delta) {
     const input = document.getElementById('preview-width');
-    input.value = Math.max(20, Math.min(64, parseInt(input.value) + delta));
+    input.value = Math.max(20, Math.min(80, parseInt(input.value) + delta));
     updatePreview();
 }
 

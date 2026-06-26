@@ -153,7 +153,9 @@ def _send_to_printer(printer, order, items, note, dest_label):
         BOLD_OFF = ESC + b'\x45\x00'
         DOUBLE_H = GS + b'\x21\x01'
         NORMAL = GS + b'\x21\x00'
-        CUT = GS + b'\x56\x00'
+        CUT = GS + b'\x56\x42\x00'  # Taglio parziale con feed
+        # Disabilita page mode (forza standard mode = altezza illimitata)
+        STD_MODE = ESC + b'\x4c'
 
         # Larghezza caratteri (default 32 per 58mm, 48 per 80mm)
         line_width = printer.paper_width_chars
@@ -161,6 +163,9 @@ def _send_to_printer(printer, order, items, note, dest_label):
 
         data = bytearray()
         data += INIT
+        data += STD_MODE  # Assicura standard mode (no page mode)
+        data += GS + b'\x4c\x00\x00'  # Margine sinistro = 0
+        data += GS + b'\x57\x00\x02'  # Larghezza area stampa = max (512 dots)
         data += CENTER
         data += DOUBLE_H
         data += f"COMANDA #{order.pk}\n".encode()
@@ -203,10 +208,14 @@ def _send_to_printer(printer, order, items, note, dest_label):
         if note:
             data += f"Note: {note}\n".encode()
             data += separator
-        data += b'\n\n\n'
+        # Feed sufficiente prima del taglio
+        data += b'\n\n\n\n\n'
         data += CUT
 
+        # Invio in blocchi per evitare buffer overflow
         s.sendall(bytes(data))
+        import time as _time
+        _time.sleep(0.5)  # Attendi che la stampante processi
         s.close()
         return True, "OK"
     except Exception as e:
