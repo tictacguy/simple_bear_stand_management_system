@@ -35,7 +35,8 @@
                                 data-id="{{ p.id }}" data-name="{{ p.name }}" data-price="{{ p.price }}"
                                 data-stock="{{ p.stock|default_if_none:'' }}" data-category="{{ p.category.name|default:'' }}"
                                 data-shortcut="{{ p.is_shortcut|yesno:'true,false' }}" data-icon="{{ p.icon }}"
-                                data-print="{{ p.print_destinations }}">Modifica</button>
+                                data-print="{{ p.print_destinations }}"
+                                data-printers="{% for pr in p.printers.all %}{{ pr.id }}{% if not forloop.last %},{% endif %}{% endfor %}">Modifica</button>
                         <button onclick="deleteProduct({{ p.id }})" class="text-red-600 hover:text-red-800">Elimina</button>
                     </td>
                 </tr>
@@ -66,15 +67,15 @@
             <!-- Destinazioni stampa -->
             <div>
                 <div class="text-xs text-slate-500 mb-2">Stampa anche su (oltre a Cassa)</div>
-                <div class="flex gap-4">
+                <div class="flex gap-4" id="printer-checks">
+                    {% for pr in printers %}
                     <label class="flex items-center gap-1.5 text-slate-600">
-                        <input id="f-print-cucina" type="checkbox" class="rounded">
-                        <span>Cucina</span>
+                        <input type="checkbox" class="rounded printer-cb" value="{{ pr.id }}" data-name="{{ pr.name }}">
+                        <span>{{ pr.name }}</span>
                     </label>
-                    <label class="flex items-center gap-1.5 text-slate-600">
-                        <input id="f-print-bar" type="checkbox" class="rounded">
-                        <span>Bar</span>
-                    </label>
+                    {% empty %}
+                    <span class="text-xs text-slate-400">Configura stampanti in Impostazioni</span>
+                    {% endfor %}
                 </div>
             </div>
             <!-- Icon picker -->
@@ -117,8 +118,7 @@ function openModal() {
     document.getElementById('modal-title').textContent = 'Nuovo prodotto';
     ['f-id','f-name','f-category','f-price','f-stock'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('f-shortcut').checked = false;
-    document.getElementById('f-print-cucina').checked = false;
-    document.getElementById('f-print-bar').checked = false;
+    document.querySelectorAll('.printer-cb').forEach(cb => cb.checked = false);
     selectIcon('');
     document.getElementById('modal').classList.remove('hidden');
     lucide.createIcons();
@@ -134,9 +134,10 @@ document.querySelectorAll('.edit-btn').forEach(btn => {
         document.getElementById('f-stock').value = btn.dataset.stock;
         document.getElementById('f-category').value = btn.dataset.category;
         document.getElementById('f-shortcut').checked = btn.dataset.shortcut === 'true';
-        const dests = btn.dataset.print || '';
-        document.getElementById('f-print-cucina').checked = dests.includes('cucina');
-        document.getElementById('f-print-bar').checked = dests.includes('bar');
+        const printerIds = (btn.dataset.printers || '').split(',').filter(Boolean);
+        document.querySelectorAll('.printer-cb').forEach(cb => {
+            cb.checked = printerIds.includes(cb.value);
+        });
         selectIcon(btn.dataset.icon);
         document.getElementById('modal').classList.remove('hidden');
         lucide.createIcons();
@@ -145,9 +146,12 @@ document.querySelectorAll('.edit-btn').forEach(btn => {
 
 async function saveProduct() {
     const stock = document.getElementById('f-stock').value;
-    const dests = [];
-    if (document.getElementById('f-print-cucina').checked) dests.push('cucina');
-    if (document.getElementById('f-print-bar').checked) dests.push('bar');
+    const printerIds = [];
+    const printerNames = [];
+    document.querySelectorAll('.printer-cb:checked').forEach(cb => {
+        printerIds.push(parseInt(cb.value));
+        printerNames.push(cb.dataset.name.toLowerCase());
+    });
     const data = {
         id: document.getElementById('f-id').value || null,
         name: document.getElementById('f-name').value,
@@ -156,7 +160,8 @@ async function saveProduct() {
         category: document.getElementById('f-category').value,
         is_shortcut: document.getElementById('f-shortcut').checked,
         icon: document.getElementById('f-icon').value,
-        print_destinations: dests.join(','),
+        print_destinations: printerNames.join(','),
+        printer_ids: printerIds,
     };
     await fetch('{% url "cassa:product_save" %}', {
         method: 'POST',

@@ -13,7 +13,7 @@ from django.views.decorators.http import require_POST
 import openpyxl
 from openpyxl.utils import get_column_letter
 
-from .models import Product, Category, Order, OrderItem, Operator, CashWithdrawal
+from .models import Product, Category, Order, OrderItem, Operator, CashWithdrawal, Printer
 
 
 # --- Utility: serata (giorno scatta alle 05:00) ---
@@ -105,10 +105,12 @@ def delete_order(request, pk):
 # --- Inventario ---
 @login_required
 def inventario(request):
-    products = Product.objects.select_related("category").order_by("name")
+    products = Product.objects.select_related("category").prefetch_related("printers").order_by("name")
     categories = Category.objects.all()
+    printers = Printer.objects.filter(is_default=False).order_by("name")
     return render(request, "cassa/inventario.html", {
-        "products": products, "categories": categories, "icon_choices": Product.ICON_CHOICES
+        "products": products, "categories": categories,
+        "icon_choices": Product.ICON_CHOICES, "printers": printers
     })
 
 
@@ -142,6 +144,9 @@ def product_save(request):
             is_shortcut=data.get("is_shortcut", False), icon=data.get("icon", ""),
             print_destinations=data.get("print_destinations", ""), category=cat
         )
+    # Aggiorna stampanti M2M
+    printer_ids = data.get("printer_ids", [])
+    p.printers.set(printer_ids)
     return JsonResponse({"id": p.pk})
 
 
@@ -423,3 +428,111 @@ def resoconti_export_all(request):
     response["Content-Disposition"] = 'attachment; filename="resoconto_completo.xlsx"'
     wb.save(response)
     return response
+
+
+# --- Impostazioni ---
+import socket
+
+
+@login_required
+def impostazioni(request):
+    printers = Printer.objects.all().order_by("-is_default", "name")
+    return render(request, "cassa/impostazioni.html", {"printers": printers})
+
+
+@login_required
+@require_POST
+def printer_save(request):
+    data = json.loads(request.body)
+    pid = data.get("id")
+    if data.get("is_default"):
+        Printer.objects.filter(is_default=True).update(is_default=False)
+    if pid:
+        p = get_object_or_404(Printer, pk=pid)
+        p.name = data["name"]
+        p.ip_address = data["ip_address"]
+        p.port = int(data.get("port", 9100))
+        p.is_default = data.get("is_default", False)
+        p.save()
+    else:
+        p = Printer.objects.create(
+            name=data["name"], ip_address=data["ip_address"],
+            port=int(data.get("port", 9100)), is_default=data.get("is_default", False)
+        )
+    return JsonResponse({"id": p.pk})
+
+
+@login_required
+@require_POST
+def printer_delete(request, pk):
+    get_object_or_404(Printer, pk=pk).delete()
+    return JsonResponse({"ok": True})
+
+
+@login_required
+def printer_test(request, pk):
+    printer = get_object_or_404(Printer, pk=pk)
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(3)
+        s.connect((printer.ip_address, printer.port))
+        # Invia test di stampa ESC/POS
+        s.sendall(b"\x1b\x40")  # Init
+        s.sendall(b"\x1b\x61\x01")  # Center
+        s.sendall(b"=== TEST STAMPANTE ===\n")
+        s.sendall(f"{printer.name}\n".encode())
+        s.sendall(f"{printer.ip_address}:{printer.port}\n".encode())
+        s.sendall(b"\n\n\n")
+        s.sendall(b"\x1d\x56\x00")  # Cut
+        s.close()
+        return JsonResponse({"status": "ok", "message": f"Connessione riuscita a {printer.ip_address}:{printer.port}"})
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": f"Errore: {str(e)}"}, status=400)
+
+
+@login_required
+def network_scan(request):
+    """Scansiona la rete locale per tutti i dispositivi attivi."""
+    import concurrent.futures
+    import subprocess
+
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+        subnet = ".".join(local_ip.split(".")[:3])
+    except Exception:
+        subnet = "192.168.1"
+        local_ip = "sconosciuto"
+
+    def check_host(i):
+        ip = f"{subnet}.{i}"
+        # Ping
+        try:
+            result = subprocess.run(["ping", "-c", "1", "-W", "1", ip], capture_output=True, timeout=2)
+            if result.returncode != 0:
+                return None
+        except Exception:
+            return None
+        # Check porta 9100
+        has_9100 = False
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(0.5)
+            has_9100 = s.connect_ex((ip, 9100)) == 0
+            s.close()
+        except Exception:
+            pass
+        return {"ip": ip, "printer": has_9100}
+
+    found = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
+        futures = {executor.submit(check_host, i): i for i in range(1, 255)}
+        for future in concurrent.futures.as_completed(futures):
+            result = future.result()
+            if result:
+                found.append(result)
+
+    found.sort(key=lambda x: [int(p) for p in x["ip"].split(".")])
+    return JsonResponse({"devices": found, "subnet": subnet, "local_ip": local_ip})

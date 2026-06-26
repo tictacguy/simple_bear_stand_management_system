@@ -21,4 +21,9 @@ urlpatterns = [
     path("resoconti/", views.resoconti, name="resoconti"),
     path("resoconti/download/<str:date>/", views.resoconti_download, name="resoconti_download"),
     path("resoconti/export-all/", views.resoconti_export_all, name="resoconti_export_all"),
+    path("impostazioni/", views.impostazioni, name="impostazioni"),
+    path("impostazioni/printer/save/", views.printer_save, name="printer_save"),
+    path("impostazioni/printer/delete/<int:pk>/", views.printer_delete, name="printer_delete"),
+    path("impostazioni/printer/test/<int:pk>/", views.printer_test, name="printer_test"),
+    path("impostazioni/scan/", views.network_scan, name="network_scan"),
 ]

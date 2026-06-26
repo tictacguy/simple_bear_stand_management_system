@@ -2,6 +2,16 @@ from django.db import models
 from django.contrib.auth.models import User
 
 
+class Printer(models.Model):
+    name = models.CharField(max_length=50, unique=True)
+    ip_address = models.GenericIPAddressField()
+    port = models.PositiveIntegerField(default=9100)
+    is_default = models.BooleanField(default=False, help_text="Stampante cassa (default)")
+
+    def __str__(self):
+        return f"{self.name} ({self.ip_address}:{self.port})"
+
+
 class Category(models.Model):
     name = models.CharField(max_length=50, unique=True)
 
@@ -34,7 +44,8 @@ class Product(models.Model):
     stock = models.PositiveIntegerField(null=True, blank=True)
     icon = models.CharField(max_length=30, blank=True, default="", choices=ICON_CHOICES)
     is_shortcut = models.BooleanField(default=False, help_text="Mostra come tab rapida in cassa")
-    print_destinations = models.CharField(max_length=50, blank=True, default="", help_text="Destinazioni extra: cucina,bar")
+    print_destinations = models.CharField(max_length=50, blank=True, default="", help_text="Nomi stampanti extra separati da virgola")
+    printers = models.ManyToManyField(Printer, blank=True, related_name="products", help_text="Stampanti extra oltre a quella di default")
 
     def __str__(self):
         return f"{self.name} - €{self.price}"

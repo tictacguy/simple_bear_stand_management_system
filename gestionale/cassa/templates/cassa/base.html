@@ -32,6 +32,9 @@
             <a href="{% url 'cassa:resoconti' %}" class="block px-3 py-2 rounded {% if request.resolver_match.url_name == 'resoconti' %}bg-sidebar-active text-white{% else %}hover:bg-sidebar-hover{% endif %}">Resoconti</a>
             <a href="{% url 'cassa:operatori' %}" class="block px-3 py-2 rounded {% if request.resolver_match.url_name == 'operatori' %}bg-sidebar-active text-white{% else %}hover:bg-sidebar-hover{% endif %}">Operatori</a>
         </nav>
+        <div class="px-2 pb-3">
+            <a href="{% url 'cassa:impostazioni' %}" class="block px-3 py-2 rounded text-slate-400 hover:bg-sidebar-hover {% if request.resolver_match.url_name == 'impostazioni' %}bg-sidebar-active text-white{% endif %}">Impostazioni</a>
+        </div>
         <div class="px-4 py-3 border-t border-slate-700 text-xs text-slate-400 flex justify-between items-center">
             <span>{{ request.user.username }}</span>
             <a href="{% url 'logout' %}" class="text-red-400 hover:text-red-300">Esci</a>

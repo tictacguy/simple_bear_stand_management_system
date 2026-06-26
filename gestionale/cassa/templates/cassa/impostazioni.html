@@ -1,0 +1,218 @@
+{% extends "cassa/base.html" %}
+{% block title %}Impostazioni{% endblock %}
+
+{% block content %}
+<div class="p-6">
+    <h1 class="text-lg font-semibold text-slate-800 mb-1">Impostazioni</h1>
+    <p class="text-xs text-slate-500 mb-5">Gestisci le stampanti collegate alla rete. La stampante di default è quella della cassa.</p>
+
+    <!-- Stampanti configurate -->
+    <div class="bg-white rounded border border-slate-200 overflow-hidden mb-5">
+        <div class="px-4 py-3 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+            <span class="text-xs font-semibold text-slate-500 uppercase">Stampanti</span>
+            <button onclick="openModal()" class="px-3 py-1.5 bg-slate-800 text-white rounded text-xs hover:bg-slate-900">Aggiungi stampante</button>
+        </div>
+        <table class="w-full">
+            <thead class="text-xs text-slate-500 uppercase bg-slate-50">
+                <tr>
+                    <th class="px-4 py-2 text-left">Nome</th>
+                    <th class="px-4 py-2 text-left">Indirizzo IP</th>
+                    <th class="px-4 py-2 text-center">Porta</th>
+                    <th class="px-4 py-2 text-center">Default</th>
+                    <th class="px-4 py-2 text-right">Azioni</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in printers %}
+                <tr class="border-t border-slate-100 hover:bg-slate-50">
+                    <td class="px-4 py-3 font-medium">{{ p.name }}</td>
+                    <td class="px-4 py-3 font-mono text-slate-600">{{ p.ip_address }}</td>
+                    <td class="px-4 py-3 text-center text-slate-500">{{ p.port }}</td>
+                    <td class="px-4 py-3 text-center">{% if p.is_default %}<span class="text-green-600 font-semibold">Cassa</span>{% else %}—{% endif %}</td>
+                    <td class="px-4 py-3 text-right space-x-2">
+                        <button onclick="testPrinter(this, {{ p.id }})" class="text-blue-600 hover:text-blue-800 text-xs">Test</button>
+                        <button class="text-slate-600 hover:text-slate-900 text-xs edit-btn"
+                                data-id="{{ p.id }}" data-name="{{ p.name }}" data-ip="{{ p.ip_address }}"
+                                data-port="{{ p.port }}" data-default="{{ p.is_default|yesno:'true,false' }}">Modifica</button>
+                        <button onclick="deletePrinter({{ p.id }})" class="text-red-600 hover:text-red-800 text-xs">Elimina</button>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="px-4 py-8 text-center text-slate-400">Nessuna stampante configurata</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Guida -->
+    <div class="mt-5 bg-slate-50 border border-slate-200 rounded p-4 text-xs text-slate-600 space-y-1">
+        <div class="font-semibold text-slate-700 mb-1">Guida rapida</div>
+        <div>1. Collega le stampanti alla stessa rete WiFi/LAN del PC cassa</div>
+        <div>2. Aggiungi ciascuna stampante con nome (es. "Cucina") e IP trovato</div>
+        <div>3. Imposta come "Default" quella della cassa</div>
+        <div>4. Usa "Test" per verificare che la connessione funzioni</div>
+        <div>5. Nell'inventario, assegna a ciascun prodotto le stampanti extra</div>
+    </div>
+</div>
+
+<!-- Modal -->
+<div id="modal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 w-96 space-y-4 shadow-xl">
+        <h2 id="modal-title" class="text-base font-semibold">Aggiungi stampante</h2>
+        <input id="f-id" type="hidden">
+        <div class="space-y-3">
+            <div>
+                <label class="text-xs text-slate-500 block mb-1">Nome</label>
+                <input id="f-name" placeholder="es. Cucina, Bar, Cassa" class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:border-slate-500">
+            </div>
+            <div>
+                <label class="text-xs text-slate-500 block mb-1">Indirizzo IP</label>
+                <input id="f-ip" placeholder="192.168.1.240" class="w-full px-3 py-2 border border-slate-300 rounded font-mono focus:outline-none focus:border-slate-500">
+            </div>
+            <div>
+                <label class="text-xs text-slate-500 block mb-1">Porta</label>
+                <input id="f-port" type="number" value="9100" class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:border-slate-500">
+            </div>
+            <label class="flex items-center gap-2 text-slate-600">
+                <input id="f-default" type="checkbox" class="rounded">
+                <span>Stampante cassa (default)</span>
+            </label>
+        </div>
+        <div class="flex gap-2 pt-2">
+            <button onclick="savePrinter()" class="flex-1 py-2 bg-slate-800 text-white rounded hover:bg-slate-900">Salva</button>
+            <button onclick="closeModal()" class="flex-1 py-2 border border-slate-300 rounded hover:bg-slate-50">Annulla</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openModal(ip) {
+    document.getElementById('modal-title').textContent = 'Aggiungi stampante';
+    document.getElementById('f-id').value = '';
+    document.getElementById('f-name').value = '';
+    document.getElementById('f-ip').value = ip || '';
+    document.getElementById('f-port').value = '9100';
+    document.getElementById('f-default').checked = false;
+    document.getElementById('modal').classList.remove('hidden');
+}
+function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+
+document.querySelectorAll('.edit-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.getElementById('modal-title').textContent = 'Modifica stampante';
+        document.getElementById('f-id').value = btn.dataset.id;
+        document.getElementById('f-name').value = btn.dataset.name;
+        document.getElementById('f-ip').value = btn.dataset.ip;
+        document.getElementById('f-port').value = btn.dataset.port;
+        document.getElementById('f-default').checked = btn.dataset.default === 'true';
+        document.getElementById('modal').classList.remove('hidden');
+    });
+});
+
+async function savePrinter() {
+    const data = {
+        id: document.getElementById('f-id').value || null,
+        name: document.getElementById('f-name').value,
+        ip_address: document.getElementById('f-ip').value,
+        port: document.getElementById('f-port').value,
+        is_default: document.getElementById('f-default').checked,
+    };
+    await fetch('{% url "cassa:printer_save" %}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+        body: JSON.stringify(data)
+    });
+    location.reload();
+}
+
+async function deletePrinter(id) {
+    if (!confirm('Eliminare questa stampante?')) return;
+    await fetch(`/impostazioni/printer/delete/${id}/`, {
+        method: 'POST',
+        headers: {'X-CSRFToken': getCookie('csrftoken')}
+    });
+    location.reload();
+}
+
+async function testPrinter(btn, id) {
+    const originalText = btn.textContent;
+    btn.textContent = 'Connessione...';
+    btn.disabled = true;
+    btn.classList.add('opacity-50');
+    try {
+        const res = await fetch(`/impostazioni/printer/test/${id}/`);
+        const data = await res.json();
+        if (res.ok) {
+            showToast(data.message, 'success');
+        } else {
+            showToast(data.message);
+        }
+    } catch(e) {
+        showToast('Errore di connessione');
+    } finally {
+        btn.textContent = originalText;
+        btn.disabled = false;
+        btn.classList.remove('opacity-50');
+    }
+}
+
+async function scanNetwork() {
+    const btn = document.getElementById('scan-btn');
+    const status = document.getElementById('scan-status');
+    const statusText = document.getElementById('scan-status-text');
+    const progress = document.getElementById('scan-progress');
+    const results = document.getElementById('scan-results');
+
+    btn.disabled = true;
+    btn.textContent = 'Scansione...';
+    btn.classList.add('opacity-50');
+    status.classList.remove('hidden');
+    results.classList.add('hidden');
+
+    // Simula progresso durante l'attesa
+    let pct = 0;
+    const interval = setInterval(() => {
+        pct = Math.min(pct + Math.random() * 8, 90);
+        progress.style.width = pct + '%';
+        statusText.textContent = `Scansione in corso... ${Math.round(pct)}%`;
+    }, 300);
+
+    try {
+        const res = await fetch('{% url "cassa:network_scan" %}');
+        const data = await res.json();
+
+        clearInterval(interval);
+        progress.style.width = '100%';
+        statusText.textContent = `Completata — subnet ${data.subnet}.x (il tuo IP: ${data.local_ip})`;
+
+        setTimeout(() => status.classList.add('hidden'), 2000);
+
+        const list = document.getElementById('scan-list');
+        results.classList.remove('hidden');
+
+        if (!data.devices.length) {
+            list.innerHTML = '<div class="text-slate-400 text-xs py-2">Nessun dispositivo trovato</div>';
+        } else {
+            list.innerHTML = data.devices.map(d => `
+                <div class="flex items-center justify-between p-2 bg-slate-50 rounded border border-slate-200">
+                    <div class="flex items-center gap-2">
+                        <span class="font-mono text-xs">${d.ip}</span>
+                        ${d.printer ? '<span class="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded">Porta 9100</span>' : '<span class="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">Dispositivo</span>'}
+                    </div>
+                    <button onclick="openModal('${d.ip}')" class="px-2 py-1 bg-slate-800 text-white rounded text-[10px] hover:bg-slate-900">Aggiungi</button>
+                </div>
+            `).join('');
+        }
+    } catch(e) {
+        clearInterval(interval);
+        statusText.textContent = 'Errore durante la scansione';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Scansiona rete';
+        btn.classList.remove('opacity-50');
+    }
+}
+</script>
+{% endblock %}
