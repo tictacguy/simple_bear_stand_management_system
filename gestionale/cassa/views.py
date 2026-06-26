@@ -102,6 +102,89 @@ def delete_order(request, pk):
     return JsonResponse({"ok": True})
 
 
+@login_required
+def print_order(request, pk):
+    """Stampa l'ordine sulle stampanti configurate via ESC/POS."""
+    order = get_object_or_404(Order, pk=pk)
+    items = order.items.select_related("product").all()
+    note = order.note
+
+    # Stampante default (cassa) - stampa tutti i prodotti
+    default_printer = Printer.objects.filter(is_default=True).first()
+
+    # Raggruppa prodotti per stampante extra
+    printer_items = {}  # printer_id -> [items]
+    for item in items:
+        if item.product:
+            for printer in item.product.printers.all():
+                printer_items.setdefault(printer.id, []).append(item)
+
+    results = []
+
+    # Stampa su cassa (default) - tutti i prodotti
+    if default_printer:
+        success, msg = _send_to_printer(default_printer, order, list(items), note, "Cassa")
+        results.append({"printer": default_printer.name, "ok": success, "message": msg})
+
+    # Stampa su stampanti extra - solo i prodotti assegnati
+    for printer_id, p_items in printer_items.items():
+        printer = Printer.objects.get(pk=printer_id)
+        success, msg = _send_to_printer(printer, order, p_items, note, printer.name)
+        results.append({"printer": printer.name, "ok": success, "message": msg})
+
+    all_ok = all(r["ok"] for r in results)
+    return JsonResponse({"ok": all_ok, "results": results}, status=200 if all_ok else 207)
+
+
+def _send_to_printer(printer, order, items, note, dest_label):
+    """Invia comanda ESC/POS a una stampante termica."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(5)
+        s.connect((printer.ip_address, printer.port))
+
+        # ESC/POS commands
+        ESC = b'\x1b'
+        GS = b'\x1d'
+        INIT = ESC + b'\x40'
+        CENTER = ESC + b'\x61\x01'
+        LEFT = ESC + b'\x61\x00'
+        BOLD_ON = ESC + b'\x45\x01'
+        BOLD_OFF = ESC + b'\x45\x00'
+        DOUBLE_H = GS + b'\x21\x01'
+        NORMAL = GS + b'\x21\x00'
+        CUT = GS + b'\x56\x00'
+
+        data = bytearray()
+        data += INIT
+        data += CENTER
+        data += DOUBLE_H
+        data += f"COMANDA #{order.pk}\n".encode()
+        data += NORMAL
+        data += f"{dest_label.upper()}\n".encode()
+        from django.utils import timezone as tz
+        data += f"{tz.localtime(order.created_at).strftime('%d/%m/%Y %H:%M')}\n".encode()
+        data += b'\n'
+        data += LEFT
+        data += b'--------------------------------\n'
+        data += BOLD_ON
+        for item in items:
+            data += f"{item.quantity}x {item.product_name}\n".encode()
+        data += BOLD_OFF
+        data += b'--------------------------------\n'
+        if note:
+            data += f"Note: {note}\n".encode()
+            data += b'--------------------------------\n'
+        data += b'\n\n\n'
+        data += CUT
+
+        s.sendall(bytes(data))
+        s.close()
+        return True, "OK"
+    except Exception as e:
+        return False, str(e)
+
+
 # --- Inventario ---
 @login_required
 def inventario(request):
